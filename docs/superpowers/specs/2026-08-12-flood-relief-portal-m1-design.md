@@ -196,11 +196,11 @@ pushing state directly, so live updates travel the same code path as an ordinary
 
 ## 4. Data model
 
-### 4.1 Collections in Milestone 1 (14)
+### 4.1 Collections in Milestone 1 (15)
 
-`users` · `audit_logs` · `notifications` · `affected_areas` · `flood_alerts` · `camps` ·
-`beneficiaries` · `registration_members` · `camp_checkins` · `resource_items` · `inventory` ·
-`distribution_rules` · `distribution_records` · `counters`
+`users` · `refresh_tokens` · `audit_logs` · `notifications` · `affected_areas` ·
+`flood_alerts` · `camps` · `beneficiaries` · `registration_members` · `camp_checkins` ·
+`resource_items` · `inventory` · `distribution_rules` · `distribution_records` · `counters`
 
 Deferred with their modules: `complaints`, `sos_requests`, `donors`, `donations`,
 `donation_materials`, `fund_requests`, `expenses`, `expense_documents`, `resource_predictions`.
@@ -212,8 +212,11 @@ Deferred with their modules: `complaints`, `sos_requests`, `donors`, `donations`
 | 1 | `family_members` → `registration_members`, holding the applicant via `is_primary` | §13 cross-system uniqueness; no MongoDB index spans two collections (§2.3 above) |
 | 2 | `camp_checkins` retained as an **event log** alongside a denormalised `checkin_status` on each member | §15 requires an audit record of who verified whom and when; the denormalised field keeps distribution-screen reads fast |
 | 3 | `counters` collection added | §7 requires unique Beneficiary IDs; generating `BEN-1025` by counting documents races under concurrent submission. Atomic `$inc` with upsert is the only race-free method |
+| 4 | `refresh_tokens` collection added | §6 specifies rotating refresh tokens. Rotation and revocation require server-side token state; a stateless refresh token cannot be revoked when an account is disabled or a device is lost |
 
-All other collections keep the names and purposes given in §8.
+`counters` and `refresh_tokens` are infrastructure collections carrying no business
+data — they support requirements from §7 and §12 respectively. All other collections keep
+the names and purposes given in §8, bringing Milestone 1 to 15 collections.
 
 ### 4.3 Key schemas
 
