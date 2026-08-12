@@ -13,13 +13,21 @@ import { CreateCampPage } from './features/admin/camps/CreateCampPage.jsx';
 import { LandingPage } from './features/landing/LandingPage.jsx';
 import { RegistrationWizard } from './features/intake/RegistrationWizard.jsx';
 import { CheckInPage } from './features/official/CheckInPage.jsx';
+import { DashboardPage } from './features/admin/DashboardPage.jsx';
+import { ResourceItemsPage } from './features/admin/resources/ResourceItemsPage.jsx';
+import { InventoryPage } from './features/admin/resources/InventoryPage.jsx';
+import { DistributionRulesPage } from './features/admin/resources/DistributionRulesPage.jsx';
+import { DistributePage } from './features/distribution/DistributePage.jsx';
+import { DistributionHistoryPage } from './features/distribution/DistributionHistoryPage.jsx';
+import { VolunteerDutyPage } from './features/official/VolunteerDutyPage.jsx';
+import { OfficialHomePage } from './features/official/OfficialHomePage.jsx';
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: false } },
 });
 
-// Placeholder home screens. Plan 2 replaces these with the landing page,
-// camp management, and the admin dashboard.
+// The registration wizard is Plan 3's; this stub covers routes whose real
+// screens belong to a later milestone.
 const Placeholder = ({ title }) => <h2>{title}</h2>;
 
 export default function App() {
@@ -43,17 +51,23 @@ export default function App() {
 
               <Route element={<RequireAuth roles={['admin']} />}>
                 <Route element={<RoleLayout />}>
-                  <Route path="/admin" element={<Placeholder title="Administrator" />} />
+                  <Route path="/admin" element={<DashboardPage />} />
                   <Route path="/admin/areas" element={<AreasPage />} />
                   <Route path="/admin/camps" element={<CampsListPage />} />
                   <Route path="/admin/camps/new" element={<CreateCampPage />} />
+                  <Route path="/admin/resources" element={<ResourceItemsPage />} />
+                  <Route path="/admin/inventory" element={<InventoryPage />} />
+                  <Route path="/admin/distribution-rules" element={<DistributionRulesPage />} />
                 </Route>
               </Route>
 
               <Route element={<RequireAuth roles={['camp_official', 'admin']} />}>
                 <Route element={<RoleLayout />}>
-                  <Route path="/official" element={<Placeholder title="Camp Official" />} />
+                  <Route path="/official" element={<OfficialHomePage />} />
                   <Route path="/official/checkin" element={<CheckInPage />} />
+                  <Route path="/official/distribute" element={<DistributePage />} />
+                  <Route path="/official/distributions" element={<DistributionHistoryPage />} />
+                  <Route path="/official/volunteers" element={<VolunteerDutyPage />} />
                 </Route>
               </Route>
 
