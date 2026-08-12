@@ -4,6 +4,36 @@ import { isLowStock } from '@frp/shared';
 import { AppError } from '../../core/errors.js';
 import { recordAudit } from '../audit/audit.service.js';
 import { emitInventoryChanged, emitLowStock } from '../../core/socket.js';
+import { User } from '../auth/user.model.js';
+import { createNotification } from '../notifications/notifications.service.js';
+
+/**
+ * Announce a low-stock crossing two ways. The socket event is transient —
+ * it only reaches whoever happens to be connected at that instant — so a
+ * stored notification per admin is what survives being offline.
+ */
+export async function announceLowStock(inv) {
+  emitLowStock(inv.camp_id, {
+    itemId: inv.item_id.toString(),
+    remaining_qty: inv.remaining_qty,
+    reorder_threshold: inv.reorder_threshold,
+  });
+
+  const item = await ResourceItem.findById(inv.item_id);
+  const label = item ? `${item.name} (${item.unit})` : 'An item';
+  const admins = await User.find({ role: 'admin', status: 'active' });
+
+  await Promise.all(
+    admins.map((a) =>
+      createNotification({
+        user_id: a._id,
+        type: 'low_stock',
+        ref_id: inv._id,
+        message: `${label} is low: ${inv.remaining_qty} left, reorder threshold ${inv.reorder_threshold}.`,
+      })
+    )
+  );
+}
 
 export async function createResourceItem(input, { actorId, actorRole, ip }) {
   const item = await ResourceItem.create({ ...input, created_by: actorId });
@@ -52,8 +82,6 @@ export async function adjustInventory(id, input, { actorId, actorRole, ip }) {
   });
 
   emitInventoryChanged(inv.camp_id, { itemId: inv.item_id.toString(), remaining_qty: inv.remaining_qty });
-  if (isLowStock(inv)) {
-    emitLowStock(inv.camp_id, { itemId: inv.item_id.toString(), remaining_qty: inv.remaining_qty, reorder_threshold: inv.reorder_threshold });
-  }
+  if (isLowStock(inv)) await announceLowStock(inv);
   return inv;
 }
