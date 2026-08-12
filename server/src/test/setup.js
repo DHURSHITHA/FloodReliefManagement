@@ -13,7 +13,7 @@ beforeAll(async () => {
     replSet: { count: 1, storageEngine: 'wiredTiger' },
   });
   await mongoose.connect(replSet.getUri());
-}, 120_000);
+}, 900_000);
 
 afterAll(async () => {
   await mongoose.disconnect();

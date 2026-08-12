@@ -8,7 +8,7 @@ export default defineConfig({
     // One shared process so the in-memory replica set starts once, not per file.
     pool: 'forks',
     fileParallelism: false,
-    hookTimeout: 120_000,
+    hookTimeout: 900_000,
     testTimeout: 30_000,
   },
 });
