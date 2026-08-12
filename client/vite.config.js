@@ -15,8 +15,11 @@ export default defineConfig({
     environment: 'jsdom',
     globals: true,
     setupFiles: ['./src/test/setup.js'],
-    // The default 5s is too tight for forms with 15+ fields where userEvent
-    // simulates real keystrokes per field (e.g. CreateCampPage's ~13s run).
-    testTimeout: 20_000,
+    // The default 5s is far too tight for forms with 15+ fields where
+    // userEvent simulates a real keystroke per character — CreateCampPage
+    // alone spends ~18s typing. Under full-suite contention that stretches
+    // further, so the cap is set well above the observed worst case rather
+    // than just above it.
+    testTimeout: 45_000,
   },
 });
