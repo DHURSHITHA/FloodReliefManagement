@@ -77,3 +77,12 @@ export async function listActiveVolunteersHandler(req, res) {
   });
   res.json({ volunteers });
 }
+
+export async function listPriorityQueueHandler(req, res) {
+  const members = await intakeService.listPriorityQueue({
+    actorRole: req.user.role,
+    actorCampIds: req.user.camp_ids,
+    selectedCampId: req.validatedQuery?.camp_id,
+  });
+  res.json({ members });
+}

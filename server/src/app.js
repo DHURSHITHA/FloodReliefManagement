@@ -12,6 +12,7 @@ import { resourcesRouter } from './modules/resources/resources.routes.js';
 import { notificationsRouter } from './modules/notifications/notifications.routes.js';
 import { distributionRouter } from './modules/distribution/distribution.routes.js';
 import { dashboardRouter } from './modules/dashboard/dashboard.routes.js';
+import { complaintsRouter } from './modules/complaints/complaints.routes.js';
 
 export function createApp() {
   const app = express();
@@ -34,6 +35,7 @@ export function createApp() {
   app.use('/api', notificationsRouter);
   app.use('/api', distributionRouter);
   app.use('/api', dashboardRouter);
+  app.use('/api', complaintsRouter);
 
   app.use(notFoundHandler);
   app.use(errorHandler);

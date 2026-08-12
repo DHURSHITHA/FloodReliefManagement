@@ -3,7 +3,12 @@ import mongoose from 'mongoose';
 const notificationSchema = new mongoose.Schema(
   {
     user_id: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
-    type: { type: String, required: true, enum: ['low_stock', 'expiry', 'other'], default: 'other' },
+    type: {
+      type: String,
+      required: true,
+      enum: ['low_stock', 'expiry', 'complaint', 'complaint_update', 'other'],
+      default: 'other',
+    },
     message: { type: String, required: true, trim: true, maxlength: 500 },
     ref_id: { type: mongoose.Schema.Types.ObjectId, default: null },
     read: { type: Boolean, default: false },

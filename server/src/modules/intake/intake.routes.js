@@ -7,6 +7,7 @@ import {
   createRegistrationHandler, getMyRegistrationHandler, getRegistrationByCodeHandler,
   searchRegistrationsHandler, checkInMemberHandler,
   assignVolunteerDutyHandler, completeVolunteerDutyHandler, listActiveVolunteersHandler,
+  listPriorityQueueHandler,
 } from './intake.controller.js';
 
 export const intakeRouter = Router();
@@ -15,6 +16,8 @@ intakeRouter.post('/registrations', authenticate, authorize('affected_person'), 
 // /me before /:code — Express matches in declaration order and :code would
 // otherwise swallow the literal "me" segment.
 intakeRouter.get('/registrations/me', authenticate, authorize('affected_person'), getMyRegistrationHandler);
+// Before /registrations/:code, or ":code" swallows the literal "priority".
+intakeRouter.get('/registrations/priority', authenticate, authorize('admin', 'camp_official'), validate(campScopeQuerySchema, 'query'), listPriorityQueueHandler);
 intakeRouter.get('/registrations', authenticate, authorize('admin', 'camp_official'), validate(searchRegistrationsQuerySchema, 'query'), searchRegistrationsHandler);
 intakeRouter.get('/registrations/:code', authenticate, authorize('admin', 'camp_official'), getRegistrationByCodeHandler);
 intakeRouter.post('/registrations/:beneficiaryId/members/:memberId/checkin', authenticate, authorize('admin', 'camp_official'), checkInMemberHandler);

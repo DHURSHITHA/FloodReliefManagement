@@ -3,7 +3,7 @@ import { RegistrationMember } from './registrationMember.model.js';
 import { CampCheckin } from './campCheckin.model.js';
 import { hashAadhaar, encryptAadhaar } from '../../core/crypto.js';
 import { nextBeneficiaryCode } from '../../core/idGenerator.js';
-import { normalizeAadhaar, maskAadhaar } from '@frp/shared';
+import { normalizeAadhaar, maskAadhaar, byServiceOrder } from '@frp/shared';
 import { withTransaction } from '../../core/transaction.js';
 import { AppError } from '../../core/errors.js';
 import { recordAudit } from '../audit/audit.service.js';
@@ -290,6 +290,34 @@ export async function completeVolunteerDuty(memberId, { hours }, { actorId, acto
     module: 'intake', record_id: member._id, after: { hours: member.volunteer_hours }, ip,
   });
   return member;
+}
+
+/**
+ * The distribution desk's queue: who at this camp should be served next.
+ *
+ * Only checked-in people appear — someone who has not arrived cannot be
+ * standing in the queue. They come back in service order (pregnant, senior,
+ * child, disability) so the desk works down the list rather than deciding
+ * priority person by person.
+ */
+export async function listPriorityQueue({ actorRole, actorCampIds, selectedCampId }) {
+  const campFilter = resolveCampScope({ actorRole, actorCampIds, selectedCampId }).filter;
+  const beneficiaries = await Beneficiary.find(campFilter).select('_id beneficiary_code camp_id');
+  const byId = new Map(beneficiaries.map((b) => [b._id.toString(), b]));
+
+  const members = await RegistrationMember.find({
+    beneficiary_id: { $in: beneficiaries.map((b) => b._id) },
+    checkin_status: 'checked_in',
+    priority_level: 'high',
+  });
+
+  return members
+    .map((m) => ({
+      ...m.toSafeJSON(),
+      beneficiary_id: m.beneficiary_id.toString(),
+      beneficiary_code: byId.get(m.beneficiary_id.toString())?.beneficiary_code ?? null,
+    }))
+    .sort(byServiceOrder);
 }
 
 export async function listActiveVolunteers({ actorRole, actorCampIds, selectedCampId }) {

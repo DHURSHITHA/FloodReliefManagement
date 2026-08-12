@@ -6,6 +6,7 @@ import { useResourceItems } from '../../api/resources.js';
 import { useDistributeItem } from '../../api/distributions.js';
 import { StatusBadge } from '../../components/StatusBadge.jsx';
 import { CampBar } from '../../camps/CampBar.jsx';
+import { PriorityQueue } from './PriorityQueue.jsx';
 
 export function DistributePage() {
   const [code, setCode] = useState('');
@@ -46,9 +47,20 @@ export function DistributePage() {
     }
   }
 
+  /** Clicking someone in the priority queue is the same as typing their code. */
+  function selectFromQueue(member) {
+    setCode(member.beneficiary_code);
+    setLookupCode(member.beneficiary_code);
+    setError(null);
+    setSuccess(null);
+  }
+
   return (
-    <Box sx={{ maxWidth: 520 }}>
+    <Box>
       <CampBar />
+
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 4, alignItems: 'start' }}>
+        <Box>
       <Typography variant="h5" sx={{ fontFamily: '"Lora", Georgia, serif', fontWeight: 600, mb: 2 }}>
         Record a distribution
       </Typography>
@@ -97,6 +109,10 @@ export function DistributePage() {
           </CardContent>
         </Card>
       )}
+        </Box>
+
+        <PriorityQueue onSelect={selectFromQueue} />
+      </Box>
     </Box>
   );
 }

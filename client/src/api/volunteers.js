@@ -1,10 +1,11 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { api } from './client.js';
 
 export function useActiveVolunteers(params = {}) {
   return useQuery({
     queryKey: ['volunteers', params],
     queryFn: async () => (await api.get('/volunteers', { params })).data.volunteers,
+    placeholderData: keepPreviousData,
   });
 }
 

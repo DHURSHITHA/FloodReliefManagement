@@ -23,6 +23,8 @@ import { VolunteerDutyPage } from './features/official/VolunteerDutyPage.jsx';
 import { OfficialHomePage } from './features/official/OfficialHomePage.jsx';
 import { OfficialsPage } from './features/admin/OfficialsPage.jsx';
 import { CampScopeProvider } from './camps/CampScope.jsx';
+import { RaiseComplaintPage } from './features/complaints/RaiseComplaintPage.jsx';
+import { ComplaintsQueuePage } from './features/complaints/ComplaintsQueuePage.jsx';
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: false } },
@@ -51,6 +53,12 @@ export default function App() {
                 </Route>
               </Route>
 
+              <Route element={<RequireAuth roles={['affected_person']} />}>
+                <Route element={<RoleLayout />}>
+                  <Route path="/queries" element={<RaiseComplaintPage />} />
+                </Route>
+              </Route>
+
               <Route element={<RequireAuth roles={['admin']} />}>
                 <Route element={<RoleLayout />}>
                   <Route path="/admin" element={<DashboardPage />} />
@@ -73,6 +81,7 @@ export default function App() {
                   <Route path="/official/distribute" element={<DistributePage />} />
                   <Route path="/official/distributions" element={<DistributionHistoryPage />} />
                   <Route path="/official/volunteers" element={<VolunteerDutyPage />} />
+                  <Route path="/official/queries" element={<ComplaintsQueuePage />} />
                 </Route>
               </Route>
 

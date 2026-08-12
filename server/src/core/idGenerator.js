@@ -17,3 +17,13 @@ export async function nextBeneficiaryCode(session) {
   );
   return `BEN-${1000 + counter.seq}`;
 }
+
+/** Same atomic counter, own sequence — the "Complaint ID" of §6.10. */
+export async function nextComplaintCode(session) {
+  const counter = await Counter.findOneAndUpdate(
+    { _id: 'complaint_code' },
+    { $inc: { seq: 1 } },
+    { new: true, upsert: true, session }
+  );
+  return `CMP-${1000 + counter.seq}`;
+}

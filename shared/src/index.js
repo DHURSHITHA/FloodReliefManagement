@@ -8,3 +8,5 @@ export * from './inventory.js';
 export * from './schemas/resource.schema.js';
 export * from './distribution.js';
 export * from './schemas/distributionRule.schema.js';
+export * from './priorityOrder.js';
+export * from './schemas/complaint.schema.js';

@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { api } from './client.js';
 
 export function useDistributeItem() {
@@ -16,5 +16,6 @@ export function useDistributions(filters = {}) {
   return useQuery({
     queryKey: ['distributions', filters],
     queryFn: async () => (await api.get('/distributions', { params: filters })).data.distributions,
+    placeholderData: keepPreviousData,
   });
 }
