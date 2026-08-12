@@ -4,6 +4,12 @@ import { isValidAadhaar } from '../aadhaar.js';
 
 const mobileRegex = /^(?:\+91|0)?[6-9]\d{9}$/;
 
+// An untouched optional field arrives from the client as '', not undefined.
+// z.optional() only skips undefined, so without this an empty string would
+// trip the field's own min()/regex() before superRefine's friendlier,
+// position-aware message ever gets a chance to run.
+const optionalTrimmed = (inner) => z.preprocess((v) => (v === '' ? undefined : v), inner.optional());
+
 export const registrationMemberInputSchema = z.object({
   name: z.string().trim().min(2, 'Name is required.').max(120),
   age: z.coerce.number().int().min(0, 'Age must be zero or more.').max(120),
@@ -12,9 +18,9 @@ export const registrationMemberInputSchema = z.object({
   is_pregnant: z.boolean().default(false),
   has_disability: z.boolean().default(false),
   wants_to_volunteer: z.boolean().default(false),
-  relation_to_applicant: z.string().trim().min(1).max(60).optional(),
-  mobile: z.string().trim().regex(mobileRegex, 'Enter a valid 10-digit mobile number.').optional(),
-  address: z.string().trim().min(1).max(300).optional(),
+  relation_to_applicant: optionalTrimmed(z.string().trim().min(1).max(60)),
+  mobile: optionalTrimmed(z.string().trim().regex(mobileRegex, 'Enter a valid 10-digit mobile number.')),
+  address: optionalTrimmed(z.string().trim().min(1).max(300)),
 });
 
 export const createRegistrationSchema = z
