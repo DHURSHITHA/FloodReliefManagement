@@ -7,6 +7,10 @@ import { RequireAuth } from './routes/RequireAuth.jsx';
 import { RoleLayout } from './layouts/RoleLayout.jsx';
 import { LoginPage } from './features/auth/LoginPage.jsx';
 import { SignupPage } from './features/auth/SignupPage.jsx';
+import { AreasPage } from './features/admin/areas/AreasPage.jsx';
+import { CampsListPage } from './features/admin/camps/CampsListPage.jsx';
+import { CreateCampPage } from './features/admin/camps/CreateCampPage.jsx';
+import { LandingPage } from './features/landing/LandingPage.jsx';
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: false } },
@@ -29,14 +33,18 @@ export default function App() {
 
               <Route element={<RequireAuth />}>
                 <Route element={<RoleLayout />}>
-                  <Route path="/" element={<Placeholder title="Relief Portal" />} />
-                  <Route path="/donor" element={<Placeholder title="Donor" />} />
+                  <Route path="/" element={<LandingPage />} />
+                  <Route path="/donor" element={<LandingPage />} />
+                  <Route path="/register/:campId" element={<Placeholder title="Registration opens in the next update" />} />
                 </Route>
               </Route>
 
               <Route element={<RequireAuth roles={['admin']} />}>
                 <Route element={<RoleLayout />}>
                   <Route path="/admin" element={<Placeholder title="Administrator" />} />
+                  <Route path="/admin/areas" element={<AreasPage />} />
+                  <Route path="/admin/camps" element={<CampsListPage />} />
+                  <Route path="/admin/camps/new" element={<CreateCampPage />} />
                 </Route>
               </Route>
 
