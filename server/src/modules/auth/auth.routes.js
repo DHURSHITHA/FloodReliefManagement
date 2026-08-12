@@ -2,7 +2,8 @@ import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
 import { signupSchema, loginSchema } from '@frp/shared';
 import { validate } from '../../middleware/validate.js';
-import { signupHandler, loginHandler, refreshHandler, logoutHandler } from './auth.controller.js';
+import { authenticate } from '../../middleware/authenticate.js';
+import { signupHandler, loginHandler, refreshHandler, logoutHandler, meHandler } from './auth.controller.js';
 
 // Credential endpoints are the ones worth brute-forcing, so they are limited.
 export const authLimiter = rateLimit({
@@ -18,3 +19,4 @@ authRouter.post('/signup', authLimiter, validate(signupSchema), signupHandler);
 authRouter.post('/login', authLimiter, validate(loginSchema), loginHandler);
 authRouter.post('/refresh', refreshHandler);
 authRouter.post('/logout', logoutHandler);
+authRouter.get('/me', authenticate, meHandler);

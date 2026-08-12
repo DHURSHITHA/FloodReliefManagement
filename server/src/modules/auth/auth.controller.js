@@ -33,6 +33,10 @@ export async function refreshHandler(req, res) {
   res.json({ user: user.toSafeJSON(), access_token });
 }
 
+export async function meHandler(req, res) {
+  res.json({ user: req.user.doc.toSafeJSON() });
+}
+
 export async function logoutHandler(req, res) {
   await authService.revokeRefreshToken(req.cookies?.[REFRESH_COOKIE]);
   res.clearCookie(REFRESH_COOKIE, { path: '/api/auth' });
