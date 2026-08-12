@@ -7,6 +7,7 @@ import { notFoundHandler, errorHandler } from './middleware/errorHandler.js';
 import { authRouter } from './modules/auth/auth.routes.js';
 import { areasRouter } from './modules/areas/areas.routes.js';
 import { campsRouter } from './modules/camps/camps.routes.js';
+import { intakeRouter } from './modules/intake/intake.routes.js';
 
 export function createApp() {
   const app = express();
@@ -24,6 +25,7 @@ export function createApp() {
   app.use('/api/auth', authRouter);
   app.use('/api', areasRouter);
   app.use('/api', campsRouter);
+  app.use('/api', intakeRouter);
 
   app.use(notFoundHandler);
   app.use(errorHandler);
