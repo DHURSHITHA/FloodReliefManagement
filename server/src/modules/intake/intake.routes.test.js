@@ -33,9 +33,18 @@ const registrationBody = (campId, over = {}) => ({
   ...over,
 });
 
-async function createCamp(admin) {
-  const res = await request(app).post('/api/camps').set(bearer(admin)).send(campBody());
+async function createCamp(admin, over = {}) {
+  const res = await request(app).post('/api/camps').set(bearer(admin)).send(campBody(over));
   return res.body.camp.id;
+}
+
+/** Registers one family at `campId` and returns its BEN- code. */
+async function registerAt(campId, aadhaar, name) {
+  const person = await makeUser('affected_person');
+  const res = await request(app).post('/api/registrations').set(bearer(person)).send(
+    registrationBody(campId, { members: [{ name, age: 34, gender: 'female', aadhaar, mobile: '9876543210', address: '12 River Road' }] }),
+  );
+  return res.body.beneficiary.beneficiary_code;
 }
 
 describe('POST /api/registrations', () => {
@@ -144,7 +153,7 @@ describe('GET /api/registrations (search) and GET /api/registrations/:code', () 
     const person = await makeUser('affected_person');
     const created = await request(app).post('/api/registrations').set(bearer(person)).send(registrationBody(campId));
     const code = created.body.beneficiary.beneficiary_code;
-    const official = await makeUser('camp_official', { assigned_camp_id: campId });
+    const official = await makeUser('camp_official', { assigned_camp_ids: [campId] });
 
     const res = await request(app).get(`/api/registrations?search=${code}`).set(bearer(official));
     expect(res.status).toBe(200);
@@ -168,5 +177,64 @@ describe('GET /api/registrations (search) and GET /api/registrations/:code', () 
     const byCode = await request(app).get(`/api/registrations/${code}`).set(bearer(stranded));
     expect(byCode.status).toBe(403);
     expect(byCode.body.error.message).toMatch(/No camp is assigned/i);
+  });
+});
+
+describe('the camp bar: searching across several assigned camps', () => {
+  beforeEach(async () => { await clearDatabase(); await syncIndexes(); });
+
+  async function twoCamps() {
+    const admin = await makeUser('admin');
+    const campA = await createCamp(admin, { name: 'Riverside Community Hall' });
+    const campB = await createCamp(admin, { name: 'Hilltop School' });
+    const codeA = await registerAt(campA, '234567890202', 'Meena Devi');
+    const codeB = await registerAt(campB, '345678901238', 'Anitha Rao');
+    return { admin, campA, campB, codeA, codeB };
+  }
+
+  it('spans every assigned camp when no camp is selected', async () => {
+    const { campA, campB, codeA, codeB } = await twoCamps();
+    const official = await makeUser('camp_official', { assigned_camp_ids: [campA, campB] });
+
+    const a = await request(app).get(`/api/registrations?search=${codeA}`).set(bearer(official));
+    const b = await request(app).get(`/api/registrations?search=${codeB}`).set(bearer(official));
+    expect(a.body.registrations).toHaveLength(1);
+    expect(b.body.registrations).toHaveLength(1);
+  });
+
+  it('narrows to the selected camp, hiding the other one', async () => {
+    const { campA, campB, codeA, codeB } = await twoCamps();
+    const official = await makeUser('camp_official', { assigned_camp_ids: [campA, campB] });
+
+    const hit = await request(app).get(`/api/registrations?search=${codeA}&camp_id=${campA}`).set(bearer(official));
+    expect(hit.body.registrations).toHaveLength(1);
+
+    const miss = await request(app).get(`/api/registrations?search=${codeB}&camp_id=${campA}`).set(bearer(official));
+    expect(miss.status).toBe(200);
+    expect(miss.body.registrations).toHaveLength(0);
+  });
+
+  it('refuses a camp the official is not assigned to', async () => {
+    const { campA, campB, codeB } = await twoCamps();
+    const official = await makeUser('camp_official', { assigned_camp_ids: [campA] });
+
+    const res = await request(app).get(`/api/registrations?search=${codeB}&camp_id=${campB}`).set(bearer(official));
+    expect(res.status).toBe(403);
+    expect(res.body.error.message).toMatch(/not assigned to that camp/i);
+  });
+
+  it('still refuses a registration at an unassigned camp on the by-code lookup', async () => {
+    const { campA, codeB } = await twoCamps();
+    const official = await makeUser('camp_official', { assigned_camp_ids: [campA] });
+
+    const res = await request(app).get(`/api/registrations/${codeB}`).set(bearer(official));
+    expect(res.status).toBe(403);
+  });
+
+  it('lets an admin narrow to one camp too', async () => {
+    const { admin, campA, codeB } = await twoCamps();
+    const res = await request(app).get(`/api/registrations?search=${codeB}&camp_id=${campA}`).set(bearer(admin));
+    expect(res.status).toBe(200);
+    expect(res.body.registrations).toHaveLength(0);
   });
 });

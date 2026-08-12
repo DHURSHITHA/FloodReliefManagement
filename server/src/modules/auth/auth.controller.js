@@ -52,7 +52,7 @@ export async function officialDecisionHandler(req, res) {
   const user = await authService.decideOfficial({
     userId: req.params.id,
     decision: req.body.decision,
-    assigned_camp_id: req.body.assigned_camp_id,
+    assigned_camp_ids: req.body.assigned_camp_ids,
     adminId: req.user.id,
     adminRole: req.user.role,
     ip: req.ip,

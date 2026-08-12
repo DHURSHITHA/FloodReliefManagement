@@ -46,6 +46,18 @@ export const createRegistrationSchema = z
     });
   });
 
+/** `camp_id` is the camp chosen in the camp bar — it narrows the search to one camp. */
 export const searchRegistrationsQuerySchema = z.object({
   search: z.string().trim().min(1, 'Enter a search term.').max(120),
+  camp_id: z.preprocess(
+    (v) => (v === '' ? undefined : v),
+    z.string().regex(/^[0-9a-fA-F]{24}$/, 'Invalid camp id.').optional(),
+  ),
+});
+
+export const campScopeQuerySchema = z.object({
+  camp_id: z.preprocess(
+    (v) => (v === '' ? undefined : v),
+    z.string().regex(/^[0-9a-fA-F]{24}$/, 'Invalid camp id.').optional(),
+  ),
 });

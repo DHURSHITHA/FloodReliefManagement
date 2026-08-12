@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { Alert, Box, Button, Card, CardContent, TextField, Typography } from '@mui/material';
 import { useActiveVolunteers, useAssignVolunteerDuty, useCompleteVolunteerDuty } from '../../api/volunteers.js';
 import { StatusBadge } from '../../components/StatusBadge.jsx';
+import { CampBar } from '../../camps/CampBar.jsx';
+import { useCampScope } from '../../camps/CampScope.jsx';
 
 /**
  * Assignment and the duty roster are one screen, not two: the same person
@@ -9,7 +11,8 @@ import { StatusBadge } from '../../components/StatusBadge.jsx';
  * splitting them would mean navigating back and forth to do one job.
  */
 export function VolunteerDutyPage() {
-  const { data: volunteers = [] } = useActiveVolunteers();
+  const { params } = useCampScope();
+  const { data: volunteers = [] } = useActiveVolunteers(params);
   const assign = useAssignVolunteerDuty();
   const complete = useCompleteVolunteerDuty();
 
@@ -30,6 +33,7 @@ export function VolunteerDutyPage() {
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3, maxWidth: 720 }}>
+      <CampBar />
       <Typography variant="h5" sx={{ fontFamily: '"Lora", Georgia, serif', fontWeight: 600 }}>
         Volunteer duties
       </Typography>

@@ -28,7 +28,7 @@ export async function getMyRegistrationHandler(req, res) {
 
 export async function getRegistrationByCodeHandler(req, res) {
   const registration = await intakeService.getRegistrationByCode(req.params.code, {
-    actorRole: req.user.role, actorCampId: req.user.camp_id,
+    actorRole: req.user.role, actorCampIds: req.user.camp_ids,
   });
   res.json({
     registration: {
@@ -40,35 +40,40 @@ export async function getRegistrationByCodeHandler(req, res) {
 
 export async function searchRegistrationsHandler(req, res) {
   const results = await intakeService.searchRegistrations({
-    search: req.validatedQuery.search, actorRole: req.user.role, actorCampId: req.user.camp_id,
+    search: req.validatedQuery.search,
+    actorRole: req.user.role,
+    actorCampIds: req.user.camp_ids,
+    selectedCampId: req.validatedQuery.camp_id,
   });
   res.json({ registrations: results });
 }
 
 export async function checkInMemberHandler(req, res) {
   const { member } = await intakeService.checkInMember(req.params.beneficiaryId, req.params.memberId, {
-    actorId: req.user.id, actorRole: req.user.role, actorCampId: req.user.camp_id, ip: req.ip,
+    actorId: req.user.id, actorRole: req.user.role, actorCampIds: req.user.camp_ids, ip: req.ip,
   });
   res.json({ member: member.toSafeJSON() });
 }
 
 export async function assignVolunteerDutyHandler(req, res) {
   const member = await intakeService.assignVolunteerDuty(req.params.memberId, req.body, {
-    actorId: req.user.id, actorRole: req.user.role, actorCampId: req.user.camp_id, ip: req.ip,
+    actorId: req.user.id, actorRole: req.user.role, actorCampIds: req.user.camp_ids, ip: req.ip,
   });
   res.json({ member: member.toSafeJSON() });
 }
 
 export async function completeVolunteerDutyHandler(req, res) {
   const member = await intakeService.completeVolunteerDuty(req.params.memberId, req.body, {
-    actorId: req.user.id, actorRole: req.user.role, actorCampId: req.user.camp_id, ip: req.ip,
+    actorId: req.user.id, actorRole: req.user.role, actorCampIds: req.user.camp_ids, ip: req.ip,
   });
   res.json({ member: member.toSafeJSON() });
 }
 
 export async function listActiveVolunteersHandler(req, res) {
   const volunteers = await intakeService.listActiveVolunteers({
-    actorRole: req.user.role, actorCampId: req.user.camp_id,
+    actorRole: req.user.role,
+    actorCampIds: req.user.camp_ids,
+    selectedCampId: req.validatedQuery?.camp_id,
   });
   res.json({ volunteers });
 }

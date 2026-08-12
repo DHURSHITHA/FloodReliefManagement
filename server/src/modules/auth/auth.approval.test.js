@@ -68,11 +68,11 @@ describe('camp official approval', () => {
     const res = await request(app)
       .post(`/api/auth/officials/${official._id}/decision`)
       .set(bearer(admin))
-      .send({ decision: 'approve', assigned_camp_id: campId });
+      .send({ decision: 'approve', assigned_camp_ids: [campId] });
 
     expect(res.status).toBe(200);
     expect(res.body.user.status).toBe('active');
-    expect(res.body.user.assigned_camp_id).toBe(campId);
+    expect(res.body.user.assigned_camp_ids).toEqual([campId]);
 
     const saved = await User.findById(official._id);
     expect(saved.approved_by.toString()).toBe(admin._id.toString());
@@ -88,7 +88,7 @@ describe('camp official approval', () => {
     expect(before.status).toBe(403);
 
     await request(app).post(`/api/auth/officials/${official._id}/decision`)
-      .set(bearer(admin)).send({ decision: 'approve', assigned_camp_id: campId });
+      .set(bearer(admin)).send({ decision: 'approve', assigned_camp_ids: [campId] });
 
     const after = await request(app).post('/api/auth/login').send({ identifier: '9876543212', password });
     expect(after.status).toBe(200);
@@ -114,7 +114,7 @@ describe('camp official approval', () => {
     });
     const campId = await makeCamp(admin);
     const res = await request(app).post(`/api/auth/officials/${donor._id}/decision`)
-      .set(bearer(admin)).send({ decision: 'approve', assigned_camp_id: campId });
+      .set(bearer(admin)).send({ decision: 'approve', assigned_camp_ids: [campId] });
     expect(res.status).toBe(404);
   });
 
@@ -123,7 +123,7 @@ describe('camp official approval', () => {
     const official = await makePendingOfficial();
     const campId = await makeCamp(admin);
     await request(app).post(`/api/auth/officials/${official._id}/decision`)
-      .set(bearer(admin)).send({ decision: 'approve', assigned_camp_id: campId });
+      .set(bearer(admin)).send({ decision: 'approve', assigned_camp_ids: [campId] });
 
     const entry = await AuditLog.findOne({ action: 'user.official_approved' });
     expect(entry.actor_id.toString()).toBe(admin._id.toString());
@@ -147,7 +147,7 @@ describe('camp official approval', () => {
       .set(bearer(admin)).send({ decision: 'approve' });
 
     expect(res.status).toBe(400);
-    expect(res.body.error.details[0].path).toBe('assigned_camp_id');
+    expect(res.body.error.details[0].path).toBe('assigned_camp_ids');
 
     const saved = await User.findById(official._id);
     expect(saved.status).toBe('pending_approval');
@@ -159,7 +159,7 @@ describe('camp official approval', () => {
 
     const res = await request(app).post(`/api/auth/officials/${official._id}/decision`)
       .set(bearer(admin))
-      .send({ decision: 'approve', assigned_camp_id: new mongoose.Types.ObjectId().toString() });
+      .send({ decision: 'approve', assigned_camp_ids: [new mongoose.Types.ObjectId().toString()] });
 
     expect(res.status).toBe(404);
     const saved = await User.findById(official._id);

@@ -5,6 +5,7 @@ import { api } from '../../api/client.js';
 import { useResourceItems } from '../../api/resources.js';
 import { useDistributeItem } from '../../api/distributions.js';
 import { StatusBadge } from '../../components/StatusBadge.jsx';
+import { CampBar } from '../../camps/CampBar.jsx';
 
 export function DistributePage() {
   const [code, setCode] = useState('');
@@ -47,6 +48,7 @@ export function DistributePage() {
 
   return (
     <Box sx={{ maxWidth: 520 }}>
+      <CampBar />
       <Typography variant="h5" sx={{ fontFamily: '"Lora", Georgia, serif', fontWeight: 600, mb: 2 }}>
         Record a distribution
       </Typography>

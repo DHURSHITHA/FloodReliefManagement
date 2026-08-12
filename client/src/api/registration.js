@@ -17,10 +17,11 @@ export function useSubmitRegistration() {
   });
 }
 
-export function useSearchRegistrations(search) {
+export function useSearchRegistrations(search, scopeParams = {}) {
   return useQuery({
-    queryKey: ['registrations', 'search', search],
-    queryFn: async () => (await api.get('/registrations', { params: { search } })).data.registrations,
+    queryKey: ['registrations', 'search', search, scopeParams],
+    queryFn: async () =>
+      (await api.get('/registrations', { params: { search, ...scopeParams } })).data.registrations,
     enabled: Boolean(search),
   });
 }

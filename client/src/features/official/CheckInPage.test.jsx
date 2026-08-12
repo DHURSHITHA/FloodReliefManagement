@@ -3,16 +3,25 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { CheckInPage } from './CheckInPage.jsx';
+import { CampScopeProvider } from '../../camps/CampScope.jsx';
 import { api } from '../../api/client.js';
 
 vi.mock('../../api/client.js', async (orig) => {
   const actual = await orig();
   return { ...actual, api: { ...actual.api, get: vi.fn(), post: vi.fn() } };
 });
+// The page reads its camp from the shared scope, so the provider comes with it.
+vi.mock('../../AuthProvider.jsx', () => ({
+  useAuth: () => ({ user: { role: 'camp_official', assigned_camp_ids: ['c1'] } }),
+}));
 
 function renderPage() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
-  return render(<QueryClientProvider client={qc}><CheckInPage /></QueryClientProvider>);
+  return render(
+    <QueryClientProvider client={qc}>
+      <CampScopeProvider><CheckInPage /></CampScopeProvider>
+    </QueryClientProvider>,
+  );
 }
 
 describe('CheckInPage', () => {

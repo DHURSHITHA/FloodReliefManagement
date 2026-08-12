@@ -4,14 +4,19 @@ import {
 import { useDistributions } from '../../api/distributions.js';
 import { useResourceItems } from '../../api/resources.js';
 import { StatusBadge } from '../../components/StatusBadge.jsx';
+import { CampBar } from '../../camps/CampBar.jsx';
+import { useCampScope } from '../../camps/CampScope.jsx';
 
 export function DistributionHistoryPage() {
-  const { data: distributions = [] } = useDistributions();
+  const { campId } = useCampScope();
+  // The history route names its filter `camp`, not `camp_id`.
+  const { data: distributions = [] } = useDistributions(campId ? { camp: campId } : {});
   const { data: items = [] } = useResourceItems();
   const itemName = (id) => items.find((i) => i.id === id)?.name ?? 'Unknown item';
 
   return (
     <Box>
+      <CampBar />
       <Typography variant="h5" sx={{ fontFamily: '"Lora", Georgia, serif', fontWeight: 600, mb: 2 }}>
         Distribution history
       </Typography>

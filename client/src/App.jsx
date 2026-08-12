@@ -22,6 +22,7 @@ import { DistributionHistoryPage } from './features/distribution/DistributionHis
 import { VolunteerDutyPage } from './features/official/VolunteerDutyPage.jsx';
 import { OfficialHomePage } from './features/official/OfficialHomePage.jsx';
 import { OfficialsPage } from './features/admin/OfficialsPage.jsx';
+import { CampScopeProvider } from './camps/CampScope.jsx';
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: false } },
@@ -63,8 +64,10 @@ export default function App() {
                 </Route>
               </Route>
 
+              {/* The camp bar's selection is shared across every screen in this
+                  group, so the provider wraps the group rather than each page. */}
               <Route element={<RequireAuth roles={['camp_official', 'admin']} />}>
-                <Route element={<RoleLayout />}>
+                <Route element={<CampScopeProvider><RoleLayout /></CampScopeProvider>}>
                   <Route path="/official" element={<OfficialHomePage />} />
                   <Route path="/official/checkin" element={<CheckInPage />} />
                   <Route path="/official/distribute" element={<DistributePage />} />

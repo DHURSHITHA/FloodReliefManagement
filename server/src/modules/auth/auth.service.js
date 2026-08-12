@@ -125,21 +125,23 @@ export async function listPendingOfficials() {
   return User.find({ role: 'camp_official', status: 'pending_approval' }).sort({ createdAt: 1 });
 }
 
-export async function decideOfficial({ userId, decision, assigned_camp_id, adminId, adminRole, ip }) {
+export async function decideOfficial({ userId, decision, assigned_camp_ids = [], adminId, adminRole, ip }) {
   const user = await User.findOne({ _id: userId, role: 'camp_official', status: 'pending_approval' });
   if (!user) throw AppError.notFound('No camp official is awaiting approval with that id.');
 
-  // Approving without a camp strands the account: every camp-scoped screen
-  // scopes to assigned_camp_id, and a null scope matches nothing. The schema
-  // requires the field; this confirms the camp is real. Camps are another
+  // Approving with no camps strands the account: every camp-scoped screen
+  // scopes to assigned_camp_ids, and an empty scope matches nothing. The schema
+  // requires at least one; this confirms each is real. Camps are another
   // module's collection, so the check goes through its service (§3.2).
-  if (decision === 'approve') await getCampById(assigned_camp_id); // throws 404 if absent
+  if (decision === 'approve') {
+    await Promise.all(assigned_camp_ids.map((id) => getCampById(id))); // throws 404 on the first absent one
+  }
 
   const before = { status: user.status };
   user.status = decision === 'approve' ? 'active' : 'rejected';
   user.approved_by = adminId;
   user.approved_at = new Date();
-  if (decision === 'approve') user.assigned_camp_id = assigned_camp_id;
+  if (decision === 'approve') user.assigned_camp_ids = assigned_camp_ids;
   await user.save();
 
   await recordAudit({
@@ -149,7 +151,7 @@ export async function decideOfficial({ userId, decision, assigned_camp_id, admin
     module: 'auth',
     record_id: user._id,
     before,
-    after: { status: user.status, assigned_camp_id: user.assigned_camp_id ?? null },
+    after: { status: user.status, assigned_camp_ids: (user.assigned_camp_ids ?? []).map(String) },
     ip,
   });
 

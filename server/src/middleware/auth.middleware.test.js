@@ -107,13 +107,13 @@ describe('requireOwnCamp', () => {
 
   it('lets an official act on their assigned camp', async () => {
     const campId = new mongoose.Types.ObjectId();
-    const official = await makeUser('camp_official', { assigned_camp_id: campId });
+    const official = await makeUser('camp_official', { assigned_camp_ids: [campId] });
     const res = await request(app).get(`/camps/${campId}`).set('Authorization', `Bearer ${signAccessToken(official)}`);
     expect(res.status).toBe(200);
   });
 
   it('refuses an official acting on someone else camp', async () => {
-    const official = await makeUser('camp_official', { assigned_camp_id: new mongoose.Types.ObjectId() });
+    const official = await makeUser('camp_official', { assigned_camp_ids: [new mongoose.Types.ObjectId()] });
     const other = new mongoose.Types.ObjectId();
     const res = await request(app).get(`/camps/${other}`).set('Authorization', `Bearer ${signAccessToken(official)}`);
     expect(res.status).toBe(403);

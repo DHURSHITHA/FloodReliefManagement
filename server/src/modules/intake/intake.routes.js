@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { createRegistrationSchema, searchRegistrationsQuerySchema } from '@frp/shared';
+import { createRegistrationSchema, searchRegistrationsQuerySchema, campScopeQuerySchema } from '@frp/shared';
 import { validate } from '../../middleware/validate.js';
 import { authenticate } from '../../middleware/authenticate.js';
 import { authorize } from '../../middleware/authorize.js';
@@ -19,6 +19,6 @@ intakeRouter.get('/registrations', authenticate, authorize('admin', 'camp_offici
 intakeRouter.get('/registrations/:code', authenticate, authorize('admin', 'camp_official'), getRegistrationByCodeHandler);
 intakeRouter.post('/registrations/:beneficiaryId/members/:memberId/checkin', authenticate, authorize('admin', 'camp_official'), checkInMemberHandler);
 
-intakeRouter.get('/volunteers', authenticate, authorize('admin', 'camp_official'), listActiveVolunteersHandler);
+intakeRouter.get('/volunteers', authenticate, authorize('admin', 'camp_official'), validate(campScopeQuerySchema, 'query'), listActiveVolunteersHandler);
 intakeRouter.post('/volunteers/:memberId/assign', authenticate, authorize('admin', 'camp_official'), assignVolunteerDutyHandler);
 intakeRouter.post('/volunteers/:memberId/complete', authenticate, authorize('admin', 'camp_official'), completeVolunteerDutyHandler);

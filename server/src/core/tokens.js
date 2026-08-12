@@ -10,7 +10,7 @@ export function signAccessToken(user) {
     {
       sub: user._id.toString(),
       role: user.role,
-      camp_id: user.assigned_camp_id ? user.assigned_camp_id.toString() : null,
+      camp_ids: (user.assigned_camp_ids ?? []).map((id) => id.toString()),
     },
     env.JWT_ACCESS_SECRET,
     { expiresIn: ACCESS_TOKEN_TTL }

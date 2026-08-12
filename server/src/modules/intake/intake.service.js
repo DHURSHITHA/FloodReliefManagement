@@ -119,33 +119,56 @@ export async function getMyRegistration(userId) {
 }
 
 /**
- * A camp official's every read is scoped to their assigned camp. When no camp
- * has been assigned, `actorCampId` is null — and a null scope silently matches
- * nothing, so searches came back empty and check-in looked broken with no clue
- * why. Fail loudly instead: the account needs an admin to assign a camp.
+ * Works out which camps this actor may touch, and narrows that to the one they
+ * have selected in the camp bar.
+ *
+ * An admin sees every camp unless they pick one. An official sees only the
+ * camps assigned to them: picking one narrows to it, picking none spans all of
+ * theirs. Two failures are called out by name rather than returning an empty
+ * list, because an empty list reads as "nobody is registered here" when the
+ * real answer is "your account cannot see this":
+ *   - no camps assigned at all — the account needs an admin
+ *   - a camp selected that isn't theirs — a stale selection or a forged request
+ *
+ * @returns {{ filter: object, allows: (campId: any) => boolean }}
  */
-function requireCampScope({ actorRole, actorCampId }) {
-  if (actorRole === 'camp_official' && !actorCampId) {
+export function resolveCampScope({ actorRole, actorCampIds = [], selectedCampId = null }) {
+  const selected = selectedCampId ? String(selectedCampId) : null;
+
+  if (actorRole !== 'camp_official') {
+    return { filter: selected ? { camp_id: selected } : {}, allows: () => true };
+  }
+
+  const assigned = actorCampIds.map(String);
+  if (assigned.length === 0) {
     throw AppError.forbidden(
       'No camp is assigned to your account. Ask an administrator to assign you to a camp before checking people in.',
     );
   }
+  if (selected && !assigned.includes(selected)) {
+    throw AppError.forbidden('You are not assigned to that camp.');
+  }
+
+  const ids = selected ? [selected] : assigned;
+  return {
+    filter: { camp_id: { $in: ids } },
+    allows: (campId) => ids.includes(String(campId)),
+  };
 }
 
-export async function getRegistrationByCode(code, { actorRole, actorCampId }) {
-  requireCampScope({ actorRole, actorCampId });
+export async function getRegistrationByCode(code, { actorRole, actorCampIds, selectedCampId }) {
+  const scope = resolveCampScope({ actorRole, actorCampIds, selectedCampId });
   const beneficiary = await Beneficiary.findOne({ beneficiary_code: code.toUpperCase() });
   if (!beneficiary) throw AppError.notFound('No registration with that code.');
-  if (actorRole === 'camp_official' && String(beneficiary.camp_id) !== String(actorCampId)) {
-    throw AppError.forbidden('You may only view registrations at your assigned camp.');
+  if (!scope.allows(beneficiary.camp_id)) {
+    throw AppError.forbidden('That registration is at a camp you are not working in.');
   }
   const members = await RegistrationMember.find({ beneficiary_id: beneficiary._id });
   return { beneficiary, members };
 }
 
-export async function searchRegistrations({ search, actorRole, actorCampId }) {
-  requireCampScope({ actorRole, actorCampId });
-  const campFilter = actorRole === 'camp_official' ? { camp_id: actorCampId } : {};
+export async function searchRegistrations({ search, actorRole, actorCampIds, selectedCampId }) {
+  const campFilter = resolveCampScope({ actorRole, actorCampIds, selectedCampId }).filter;
 
   const byCode = await Beneficiary.findOne({ beneficiary_code: search.toUpperCase(), ...campFilter });
   if (byCode) {
@@ -174,12 +197,15 @@ export async function searchRegistrations({ search, actorRole, actorCampId }) {
  * is at stake here, only a status flag and an append-only log, so the
  * added overhead isn't justified — a deliberate simplification.
  */
-export async function checkInMember(beneficiaryId, memberId, { actorId, actorRole, actorCampId, ip }) {
-  requireCampScope({ actorRole, actorCampId });
+export async function checkInMember(beneficiaryId, memberId, { actorId, actorRole, actorCampIds, ip }) {
+  // Writes are checked against every camp the official runs, not the one
+  // currently selected — being on another camp in the picker shouldn't block
+  // a check-in they are entitled to make.
+  const scope = resolveCampScope({ actorRole, actorCampIds });
   const beneficiary = await Beneficiary.findById(beneficiaryId);
   if (!beneficiary) throw AppError.notFound('No registration with that id.');
-  if (actorRole === 'camp_official' && String(beneficiary.camp_id) !== String(actorCampId)) {
-    throw AppError.forbidden('You may only check in members at your assigned camp.');
+  if (!scope.allows(beneficiary.camp_id)) {
+    throw AppError.forbidden('You may only check in members at a camp you are assigned to.');
   }
 
   const member = await RegistrationMember.findOne({ _id: memberId, beneficiary_id: beneficiaryId });
@@ -215,22 +241,22 @@ export async function checkInMember(beneficiaryId, memberId, { actorId, actorRol
  * module already owns that collection, so assignment lives here rather
  * than in a module of its own for what is mechanically two more fields.
  */
-async function loadVolunteerForActor(memberId, { actorRole, actorCampId }) {
-  requireCampScope({ actorRole, actorCampId });
+async function loadVolunteerForActor(memberId, { actorRole, actorCampIds }) {
+  const scope = resolveCampScope({ actorRole, actorCampIds });
   const member = await RegistrationMember.findById(memberId);
   if (!member) throw AppError.notFound('No volunteer with that id.');
 
   const beneficiary = await Beneficiary.findById(member.beneficiary_id);
   if (!beneficiary) throw AppError.notFound('No registration for that volunteer.');
 
-  if (actorRole === 'camp_official' && String(beneficiary.camp_id) !== String(actorCampId)) {
-    throw AppError.forbidden('You may only manage volunteers at your assigned camp.');
+  if (!scope.allows(beneficiary.camp_id)) {
+    throw AppError.forbidden('You may only manage volunteers at a camp you are assigned to.');
   }
   return member;
 }
 
-export async function assignVolunteerDuty(memberId, { task, shift }, { actorId, actorRole, actorCampId, ip }) {
-  const member = await loadVolunteerForActor(memberId, { actorRole, actorCampId });
+export async function assignVolunteerDuty(memberId, { task, shift }, { actorId, actorRole, actorCampIds, ip }) {
+  const member = await loadVolunteerForActor(memberId, { actorRole, actorCampIds });
 
   if (member.volunteer_status !== 'accepted' && member.volunteer_status !== 'active') {
     throw AppError.badRequest('This member has not been accepted as a volunteer.');
@@ -248,8 +274,8 @@ export async function assignVolunteerDuty(memberId, { task, shift }, { actorId, 
   return member;
 }
 
-export async function completeVolunteerDuty(memberId, { hours }, { actorId, actorRole, actorCampId, ip }) {
-  const member = await loadVolunteerForActor(memberId, { actorRole, actorCampId });
+export async function completeVolunteerDuty(memberId, { hours }, { actorId, actorRole, actorCampIds, ip }) {
+  const member = await loadVolunteerForActor(memberId, { actorRole, actorCampIds });
 
   if (member.volunteer_status !== 'active') {
     throw AppError.badRequest('This volunteer has no duty in progress.');
@@ -266,9 +292,8 @@ export async function completeVolunteerDuty(memberId, { hours }, { actorId, acto
   return member;
 }
 
-export async function listActiveVolunteers({ actorRole, actorCampId }) {
-  requireCampScope({ actorRole, actorCampId });
-  const campFilter = actorRole === 'camp_official' ? { camp_id: actorCampId } : {};
+export async function listActiveVolunteers({ actorRole, actorCampIds, selectedCampId }) {
+  const campFilter = resolveCampScope({ actorRole, actorCampIds, selectedCampId }).filter;
   const beneficiaries = await Beneficiary.find(campFilter).select('_id beneficiary_code camp_id');
   const byId = new Map(beneficiaries.map((b) => [b._id.toString(), b]));
 

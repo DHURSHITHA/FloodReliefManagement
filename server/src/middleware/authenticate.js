@@ -39,7 +39,7 @@ export async function authenticate(req, res, next) {
   req.user = {
     id: user._id.toString(),
     role: user.role,
-    camp_id: user.assigned_camp_id ? user.assigned_camp_id.toString() : null,
+    camp_ids: (user.assigned_camp_ids ?? []).map((id) => id.toString()),
     doc: user,
   };
   next();

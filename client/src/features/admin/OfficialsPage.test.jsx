@@ -49,13 +49,14 @@ describe('OfficialsPage', () => {
     const user = userEvent.setup();
     renderPage();
 
-    await user.click(await screen.findByRole('combobox', { name: /camp they will run/i }));
+    await user.click(await screen.findByRole('combobox', { name: /camps they will run/i }));
     await user.click(await screen.findByRole('option', { name: 'Riverside Hall' }));
+    await user.keyboard('{Escape}'); // a multi-select stays open; its backdrop covers the buttons
     await user.click(screen.getByRole('button', { name: /approve/i }));
 
     await waitFor(() => expect(api.post).toHaveBeenCalledWith(
       '/auth/officials/u1/decision',
-      { decision: 'approve', assigned_camp_id: 'c1' },
+      { decision: 'approve', assigned_camp_ids: ['c1'] },
     ));
   });
 
@@ -69,7 +70,7 @@ describe('OfficialsPage', () => {
 
     await waitFor(() => expect(api.post).toHaveBeenCalledWith(
       '/auth/officials/u1/decision',
-      { decision: 'reject', assigned_camp_id: undefined },
+      { decision: 'reject', assigned_camp_ids: [] },
     ));
   });
 

@@ -2,14 +2,18 @@ import { useState } from 'react';
 import { Box, Button, Card, CardContent, TextField, Typography } from '@mui/material';
 import { useSearchRegistrations, useCheckInMember } from '../../api/registration.js';
 import { StatusBadge } from '../../components/StatusBadge.jsx';
+import { CampBar } from '../../camps/CampBar.jsx';
+import { useCampScope } from '../../camps/CampScope.jsx';
 
 export function CheckInPage() {
   const [search, setSearch] = useState('');
-  const { data: registrations = [] } = useSearchRegistrations(search);
+  const { params, campName } = useCampScope();
+  const { data: registrations = [] } = useSearchRegistrations(search, params);
   const checkIn = useCheckInMember();
 
   return (
     <Box>
+      <CampBar />
       <Typography variant="h5" sx={{ fontFamily: '"Lora", Georgia, serif', fontWeight: 600, mb: 2 }}>
         Find a registration
       </Typography>
@@ -47,7 +51,9 @@ export function CheckInPage() {
         </Card>
       ))}
       {search && registrations.length === 0 && (
-        <Typography color="text.secondary">No registration matches "{search}".</Typography>
+        <Typography color="text.secondary">
+          No registration matches "{search}"{campName ? ` at ${campName}` : ''}.
+        </Typography>
       )}
     </Box>
   );

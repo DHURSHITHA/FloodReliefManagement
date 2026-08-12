@@ -1,8 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from './client.js';
 
-export function useActiveVolunteers() {
-  return useQuery({ queryKey: ['volunteers'], queryFn: async () => (await api.get('/volunteers')).data.volunteers });
+export function useActiveVolunteers(params = {}) {
+  return useQuery({
+    queryKey: ['volunteers', params],
+    queryFn: async () => (await api.get('/volunteers', { params })).data.volunteers,
+  });
 }
 
 export function useAssignVolunteerDuty() {

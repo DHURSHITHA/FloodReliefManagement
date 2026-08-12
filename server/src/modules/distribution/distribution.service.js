@@ -4,6 +4,7 @@ import { DistributionRule } from '../resources/distributionRule.model.js';
 import { Inventory } from '../resources/inventory.model.js';
 import { announceLowStock } from '../resources/resources.service.js';
 import { Beneficiary } from '../intake/beneficiary.model.js';
+import { resolveCampScope } from '../intake/intake.service.js';
 import { RegistrationMember } from '../intake/registrationMember.model.js';
 import { withTransaction } from '../../core/transaction.js';
 import { AppError } from '../../core/errors.js';
@@ -23,10 +24,18 @@ import { emitInventoryChanged } from '../../core/socket.js';
  * with a recorded reason. A database constraint must never be the thing
  * that refuses a starving, unverified family.
  */
-export async function distributeItem({ beneficiary_id, item_id, override_reason }, { actorId, actorRole, ip }) {
+export async function distributeItem(
+  { beneficiary_id, item_id, override_reason },
+  { actorId, actorRole, actorCampIds, ip },
+) {
+  const scope = resolveCampScope({ actorRole, actorCampIds });
+
   const result = await withTransaction(async (session) => {
     const beneficiary = await Beneficiary.findById(beneficiary_id).session(session);
     if (!beneficiary) throw AppError.notFound('No beneficiary with that id.');
+    if (!scope.allows(beneficiary.camp_id)) {
+      throw AppError.forbidden('You may only distribute at a camp you are assigned to.');
+    }
 
     const members = await RegistrationMember.find({ beneficiary_id }).session(session);
     if (members.length === 0) throw AppError.notFound('That registration has no members.');
@@ -104,10 +113,11 @@ export async function distributeItem({ beneficiary_id, item_id, override_reason 
   return result.record;
 }
 
-export async function listDistributions({ beneficiary, camp, date } = {}) {
-  const filter = {};
+export async function listDistributions({ beneficiary, camp, date, actorRole, actorCampIds } = {}) {
+  // History is scoped the same way the other official screens are: the camp
+  // bar's selection narrows it, and an official never sees another camp's.
+  const filter = { ...resolveCampScope({ actorRole, actorCampIds, selectedCampId: camp }).filter };
   if (beneficiary) filter.beneficiary_id = beneficiary;
-  if (camp) filter.camp_id = camp;
   if (date) {
     const start = new Date(date);
     const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);

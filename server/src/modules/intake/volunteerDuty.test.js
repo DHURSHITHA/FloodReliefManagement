@@ -62,7 +62,7 @@ describe('POST /api/volunteers/:memberId/assign', () => {
   it('refuses a camp official from another camp', async () => {
     const { memberId, admin } = await registerVolunteer();
     const otherCampRes = await request(app).post('/api/camps').set(bearer(admin)).send(campBody({ name: 'Other Camp' }));
-    const official = await makeUser('camp_official', { assigned_camp_id: otherCampRes.body.camp.id });
+    const official = await makeUser('camp_official', { assigned_camp_ids: [otherCampRes.body.camp.id] });
 
     const res = await request(app).post(`/api/volunteers/${memberId}/assign`).set(bearer(official)).send({ task: 'X', shift: 'Y' });
     expect(res.status).toBe(403);

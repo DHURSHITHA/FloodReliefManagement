@@ -77,7 +77,7 @@ describe('POST /api/registrations/:beneficiaryId/members/:memberId/checkin', () 
     const { beneficiary, members } = await registerFamily();
     const otherCamp = await makeUser('admin');
     const otherCampRes = await request(app).post('/api/camps').set(bearer(otherCamp)).send(campBody({ name: 'Other Camp' }));
-    const official = await makeUser('camp_official', { assigned_camp_id: otherCampRes.body.camp.id, status: 'active' });
+    const official = await makeUser('camp_official', { assigned_camp_ids: [otherCampRes.body.camp.id], status: 'active' });
 
     const res = await request(app)
       .post(`/api/registrations/${beneficiary.id}/members/${members[0].id}/checkin`)

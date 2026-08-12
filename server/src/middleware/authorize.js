@@ -28,8 +28,8 @@ export function requireOwnCamp(getCampId) {
     const target = getCampId(req);
     if (!target) return next(AppError.badRequest('A camp must be specified.'));
 
-    if (!req.user.camp_id || req.user.camp_id !== String(target)) {
-      return next(AppError.forbidden('You may only act on the camp you are assigned to.'));
+    if (!req.user.camp_ids?.includes(String(target))) {
+      return next(AppError.forbidden('You may only act on a camp you are assigned to.'));
     }
     next();
   };

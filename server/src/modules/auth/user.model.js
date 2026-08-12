@@ -20,7 +20,10 @@ const userSchema = new mongoose.Schema(
       default: 'active',
       index: true,
     },
-    assigned_camp_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Camp', default: null, index: true },
+    // An official may run more than one camp; they pick which one they are
+    // working in from a selector, and every camp-scoped action is checked
+    // against this list.
+    assigned_camp_ids: { type: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Camp' }], default: [], index: true },
     approved_by: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
     approved_at: { type: Date, default: null },
     last_login_at: { type: Date, default: null },
@@ -44,7 +47,7 @@ userSchema.methods.toSafeJSON = function toSafeJSON() {
     email: this.email ?? null,
     role: this.role,
     status: this.status,
-    assigned_camp_id: this.assigned_camp_id ? this.assigned_camp_id.toString() : null,
+    assigned_camp_ids: (this.assigned_camp_ids ?? []).map((id) => id.toString()),
   };
 };
 

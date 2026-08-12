@@ -30,22 +30,21 @@ export const loginSchema = z.object({
 });
 
 /**
- * A camp is mandatory on approval, optional on rejection. An official approved
- * without one has no camp scope, so every camp-scoped screen silently shows
- * them nothing — the account looks working and isn't.
+ * At least one camp is mandatory on approval, optional on rejection. An official
+ * approved with none has no camp scope, so every camp-scoped screen silently
+ * shows them nothing — the account looks working and isn't.
  */
 export const officialDecisionSchema = z.object({
   decision: z.enum(['approve', 'reject'], { message: 'Choose approve or reject.' }),
-  assigned_camp_id: z.preprocess(
-    (v) => (v === '' ? undefined : v),
-    z.string().regex(/^[0-9a-fA-F]{24}$/, 'Invalid camp id.').optional(),
-  ),
+  assigned_camp_ids: z
+    .array(z.string().regex(/^[0-9a-fA-F]{24}$/, 'Invalid camp id.'))
+    .default([]),
 }).superRefine((val, ctx) => {
-  if (val.decision === 'approve' && !val.assigned_camp_id) {
+  if (val.decision === 'approve' && val.assigned_camp_ids.length === 0) {
     ctx.addIssue({
       code: 'custom',
-      path: ['assigned_camp_id'],
-      message: 'Choose the camp this official will run.',
+      path: ['assigned_camp_ids'],
+      message: 'Choose at least one camp this official will run.',
     });
   }
 });
