@@ -6,6 +6,7 @@ import { authorize } from '../../middleware/authorize.js';
 import {
   createRegistrationHandler, getMyRegistrationHandler, getRegistrationByCodeHandler,
   searchRegistrationsHandler, checkInMemberHandler,
+  assignVolunteerDutyHandler, completeVolunteerDutyHandler, listActiveVolunteersHandler,
 } from './intake.controller.js';
 
 export const intakeRouter = Router();
@@ -17,3 +18,7 @@ intakeRouter.get('/registrations/me', authenticate, authorize('affected_person')
 intakeRouter.get('/registrations', authenticate, authorize('admin', 'camp_official'), validate(searchRegistrationsQuerySchema, 'query'), searchRegistrationsHandler);
 intakeRouter.get('/registrations/:code', authenticate, authorize('admin', 'camp_official'), getRegistrationByCodeHandler);
 intakeRouter.post('/registrations/:beneficiaryId/members/:memberId/checkin', authenticate, authorize('admin', 'camp_official'), checkInMemberHandler);
+
+intakeRouter.get('/volunteers', authenticate, authorize('admin', 'camp_official'), listActiveVolunteersHandler);
+intakeRouter.post('/volunteers/:memberId/assign', authenticate, authorize('admin', 'camp_official'), assignVolunteerDutyHandler);
+intakeRouter.post('/volunteers/:memberId/complete', authenticate, authorize('admin', 'camp_official'), completeVolunteerDutyHandler);

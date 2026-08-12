@@ -51,3 +51,24 @@ export async function checkInMemberHandler(req, res) {
   });
   res.json({ member: member.toSafeJSON() });
 }
+
+export async function assignVolunteerDutyHandler(req, res) {
+  const member = await intakeService.assignVolunteerDuty(req.params.memberId, req.body, {
+    actorId: req.user.id, actorRole: req.user.role, actorCampId: req.user.camp_id, ip: req.ip,
+  });
+  res.json({ member: member.toSafeJSON() });
+}
+
+export async function completeVolunteerDutyHandler(req, res) {
+  const member = await intakeService.completeVolunteerDuty(req.params.memberId, req.body, {
+    actorId: req.user.id, actorRole: req.user.role, actorCampId: req.user.camp_id, ip: req.ip,
+  });
+  res.json({ member: member.toSafeJSON() });
+}
+
+export async function listActiveVolunteersHandler(req, res) {
+  const volunteers = await intakeService.listActiveVolunteers({
+    actorRole: req.user.role, actorCampId: req.user.camp_id,
+  });
+  res.json({ volunteers });
+}

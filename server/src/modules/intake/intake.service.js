@@ -192,3 +192,77 @@ export async function checkInMember(beneficiaryId, memberId, { actorId, actorRol
 
   return { member, beneficiary };
 }
+
+/**
+ * A volunteer duty is a state transition on registration_members — this
+ * module already owns that collection, so assignment lives here rather
+ * than in a module of its own for what is mechanically two more fields.
+ */
+async function loadVolunteerForActor(memberId, { actorRole, actorCampId }) {
+  const member = await RegistrationMember.findById(memberId);
+  if (!member) throw AppError.notFound('No volunteer with that id.');
+
+  const beneficiary = await Beneficiary.findById(member.beneficiary_id);
+  if (!beneficiary) throw AppError.notFound('No registration for that volunteer.');
+
+  if (actorRole === 'camp_official' && String(beneficiary.camp_id) !== String(actorCampId)) {
+    throw AppError.forbidden('You may only manage volunteers at your assigned camp.');
+  }
+  return member;
+}
+
+export async function assignVolunteerDuty(memberId, { task, shift }, { actorId, actorRole, actorCampId, ip }) {
+  const member = await loadVolunteerForActor(memberId, { actorRole, actorCampId });
+
+  if (member.volunteer_status !== 'accepted' && member.volunteer_status !== 'active') {
+    throw AppError.badRequest('This member has not been accepted as a volunteer.');
+  }
+
+  member.volunteer_task = task;
+  member.volunteer_shift = shift;
+  member.volunteer_status = 'active';
+  await member.save();
+
+  await recordAudit({
+    actor_id: actorId, actor_role: actorRole, action: 'volunteer.assign',
+    module: 'intake', record_id: member._id, after: { task, shift }, ip,
+  });
+  return member;
+}
+
+export async function completeVolunteerDuty(memberId, { hours }, { actorId, actorRole, actorCampId, ip }) {
+  const member = await loadVolunteerForActor(memberId, { actorRole, actorCampId });
+
+  if (member.volunteer_status !== 'active') {
+    throw AppError.badRequest('This volunteer has no duty in progress.');
+  }
+
+  member.volunteer_status = 'completed';
+  member.volunteer_hours = (member.volunteer_hours || 0) + (hours || 0);
+  await member.save();
+
+  await recordAudit({
+    actor_id: actorId, actor_role: actorRole, action: 'volunteer.complete',
+    module: 'intake', record_id: member._id, after: { hours: member.volunteer_hours }, ip,
+  });
+  return member;
+}
+
+export async function listActiveVolunteers({ actorRole, actorCampId }) {
+  const campFilter = actorRole === 'camp_official' ? { camp_id: actorCampId } : {};
+  const beneficiaries = await Beneficiary.find(campFilter).select('_id beneficiary_code camp_id');
+  const byId = new Map(beneficiaries.map((b) => [b._id.toString(), b]));
+
+  const members = await RegistrationMember.find({
+    beneficiary_id: { $in: beneficiaries.map((b) => b._id) },
+    volunteer_status: { $in: ['accepted', 'active'] },
+  }).sort({ volunteer_status: 1, name: 1 });
+
+  return members.map((m) => ({
+    ...m.toSafeJSON(),
+    beneficiary_code: byId.get(m.beneficiary_id.toString())?.beneficiary_code ?? null,
+    volunteer_task: m.volunteer_task,
+    volunteer_shift: m.volunteer_shift,
+    volunteer_hours: m.volunteer_hours,
+  }));
+}

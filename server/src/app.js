@@ -10,6 +10,7 @@ import { campsRouter } from './modules/camps/camps.routes.js';
 import { intakeRouter } from './modules/intake/intake.routes.js';
 import { resourcesRouter } from './modules/resources/resources.routes.js';
 import { notificationsRouter } from './modules/notifications/notifications.routes.js';
+import { distributionRouter } from './modules/distribution/distribution.routes.js';
 
 export function createApp() {
   const app = express();
@@ -30,6 +31,7 @@ export function createApp() {
   app.use('/api', intakeRouter);
   app.use('/api', resourcesRouter);
   app.use('/api', notificationsRouter);
+  app.use('/api', distributionRouter);
 
   app.use(notFoundHandler);
   app.use(errorHandler);
