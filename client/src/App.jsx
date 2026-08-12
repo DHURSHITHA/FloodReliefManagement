@@ -11,6 +11,8 @@ import { AreasPage } from './features/admin/areas/AreasPage.jsx';
 import { CampsListPage } from './features/admin/camps/CampsListPage.jsx';
 import { CreateCampPage } from './features/admin/camps/CreateCampPage.jsx';
 import { LandingPage } from './features/landing/LandingPage.jsx';
+import { RegistrationWizard } from './features/intake/RegistrationWizard.jsx';
+import { CheckInPage } from './features/official/CheckInPage.jsx';
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: false } },
@@ -35,7 +37,7 @@ export default function App() {
                 <Route element={<RoleLayout />}>
                   <Route path="/" element={<LandingPage />} />
                   <Route path="/donor" element={<LandingPage />} />
-                  <Route path="/register/:campId" element={<Placeholder title="Registration opens in the next update" />} />
+                  <Route path="/register/:campId" element={<RegistrationWizard />} />
                 </Route>
               </Route>
 
@@ -51,6 +53,7 @@ export default function App() {
               <Route element={<RequireAuth roles={['camp_official', 'admin']} />}>
                 <Route element={<RoleLayout />}>
                   <Route path="/official" element={<Placeholder title="Camp Official" />} />
+                  <Route path="/official/checkin" element={<CheckInPage />} />
                 </Route>
               </Route>
 
