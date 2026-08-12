@@ -6,3 +6,5 @@ export * from './schemas/camp.schema.js';
 export * from './schemas/registration.schema.js';
 export * from './inventory.js';
 export * from './schemas/resource.schema.js';
+export * from './distribution.js';
+export * from './schemas/distributionRule.schema.js';
