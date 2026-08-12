@@ -119,3 +119,32 @@ export async function revokeRefreshToken(raw) {
     { revoked_at: new Date() }
   );
 }
+
+export async function listPendingOfficials() {
+  return User.find({ role: 'camp_official', status: 'pending_approval' }).sort({ createdAt: 1 });
+}
+
+export async function decideOfficial({ userId, decision, assigned_camp_id, adminId, adminRole, ip }) {
+  const user = await User.findOne({ _id: userId, role: 'camp_official', status: 'pending_approval' });
+  if (!user) throw AppError.notFound('No camp official is awaiting approval with that id.');
+
+  const before = { status: user.status };
+  user.status = decision === 'approve' ? 'active' : 'rejected';
+  user.approved_by = adminId;
+  user.approved_at = new Date();
+  if (decision === 'approve' && assigned_camp_id) user.assigned_camp_id = assigned_camp_id;
+  await user.save();
+
+  await recordAudit({
+    actor_id: adminId,
+    actor_role: adminRole,
+    action: decision === 'approve' ? 'user.official_approved' : 'user.official_rejected',
+    module: 'auth',
+    record_id: user._id,
+    before,
+    after: { status: user.status, assigned_camp_id: user.assigned_camp_id ?? null },
+    ip,
+  });
+
+  return user;
+}

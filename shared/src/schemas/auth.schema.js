@@ -28,3 +28,8 @@ export const loginSchema = z.object({
   identifier: z.string().trim().min(1, 'Enter your mobile number or email.'),
   password: z.string().min(1, 'Enter your password.'),
 });
+
+export const officialDecisionSchema = z.object({
+  decision: z.enum(['approve', 'reject'], { message: 'Choose approve or reject.' }),
+  assigned_camp_id: z.string().regex(/^[0-9a-fA-F]{24}$/, 'Invalid camp id.').optional(),
+});

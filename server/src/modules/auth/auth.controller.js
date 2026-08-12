@@ -42,3 +42,20 @@ export async function logoutHandler(req, res) {
   res.clearCookie(REFRESH_COOKIE, { path: '/api/auth' });
   res.status(204).send();
 }
+
+export async function pendingOfficialsHandler(req, res) {
+  const officials = await authService.listPendingOfficials();
+  res.json({ officials: officials.map((u) => u.toSafeJSON()) });
+}
+
+export async function officialDecisionHandler(req, res) {
+  const user = await authService.decideOfficial({
+    userId: req.params.id,
+    decision: req.body.decision,
+    assigned_camp_id: req.body.assigned_camp_id,
+    adminId: req.user.id,
+    adminRole: req.user.role,
+    ip: req.ip,
+  });
+  res.json({ user: user.toSafeJSON() });
+}
