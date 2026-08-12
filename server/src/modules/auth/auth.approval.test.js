@@ -27,6 +27,19 @@ async function makePendingOfficial(mobile = '9876543212') {
   });
 }
 
+/** Approval now requires a camp that actually exists, so fixtures need a real one. */
+async function makeCamp(admin) {
+  const res = await request(app).post('/api/camps').set(bearer(admin)).send({
+    name: 'Riverside Community Hall', camp_type: 'community_hall',
+    address: '12 River Road', area: 'Ward 12', district: 'North District', state: 'Assam', pincode: '781001',
+    latitude: 26.2, longitude: 91.7, flood_severity: 'high',
+    beneficiary_capacity: 10, volunteer_capacity: 5, duration_days: 14,
+    nearest_hospital_name: 'District Hospital', nearest_hospital_contact: '0484-2000000',
+    nearest_police_name: 'Ward 12 Police Station', nearest_police_contact: '0484-2100000',
+  });
+  return res.body.camp.id;
+}
+
 describe('camp official approval', () => {
   beforeEach(async () => { await clearDatabase(); await syncIndexes(); });
 
@@ -50,7 +63,7 @@ describe('camp official approval', () => {
   it('approves an official and assigns them a camp', async () => {
     const admin = await makeAdmin();
     const official = await makePendingOfficial();
-    const campId = new mongoose.Types.ObjectId().toString();
+    const campId = await makeCamp(admin);
 
     const res = await request(app)
       .post(`/api/auth/officials/${official._id}/decision`)
@@ -69,12 +82,13 @@ describe('camp official approval', () => {
   it('lets an approved official log in, having been refused before', async () => {
     const admin = await makeAdmin();
     const official = await makePendingOfficial();
+    const campId = await makeCamp(admin);
 
     const before = await request(app).post('/api/auth/login').send({ identifier: '9876543212', password });
     expect(before.status).toBe(403);
 
     await request(app).post(`/api/auth/officials/${official._id}/decision`)
-      .set(bearer(admin)).send({ decision: 'approve' });
+      .set(bearer(admin)).send({ decision: 'approve', assigned_camp_id: campId });
 
     const after = await request(app).post('/api/auth/login').send({ identifier: '9876543212', password });
     expect(after.status).toBe(200);
@@ -98,16 +112,18 @@ describe('camp official approval', () => {
       name: 'Donor', mobile: '9876543213',
       password_hash: await hashPassword(password), role: 'donor', status: 'active',
     });
+    const campId = await makeCamp(admin);
     const res = await request(app).post(`/api/auth/officials/${donor._id}/decision`)
-      .set(bearer(admin)).send({ decision: 'approve' });
+      .set(bearer(admin)).send({ decision: 'approve', assigned_camp_id: campId });
     expect(res.status).toBe(404);
   });
 
   it('audits the decision with the admin as actor', async () => {
     const admin = await makeAdmin();
     const official = await makePendingOfficial();
+    const campId = await makeCamp(admin);
     await request(app).post(`/api/auth/officials/${official._id}/decision`)
-      .set(bearer(admin)).send({ decision: 'approve' });
+      .set(bearer(admin)).send({ decision: 'approve', assigned_camp_id: campId });
 
     const entry = await AuditLog.findOne({ action: 'user.official_approved' });
     expect(entry.actor_id.toString()).toBe(admin._id.toString());
@@ -121,5 +137,43 @@ describe('camp official approval', () => {
     const res = await request(app).post(`/api/auth/officials/${official._id}/decision`)
       .set(bearer(admin)).send({ decision: 'maybe' });
     expect(res.status).toBe(400);
+  });
+
+  it('refuses to approve without a camp, which would strand the account', async () => {
+    const admin = await makeAdmin();
+    const official = await makePendingOfficial();
+
+    const res = await request(app).post(`/api/auth/officials/${official._id}/decision`)
+      .set(bearer(admin)).send({ decision: 'approve' });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error.details[0].path).toBe('assigned_camp_id');
+
+    const saved = await User.findById(official._id);
+    expect(saved.status).toBe('pending_approval');
+  });
+
+  it('refuses to approve against a camp that does not exist', async () => {
+    const admin = await makeAdmin();
+    const official = await makePendingOfficial();
+
+    const res = await request(app).post(`/api/auth/officials/${official._id}/decision`)
+      .set(bearer(admin))
+      .send({ decision: 'approve', assigned_camp_id: new mongoose.Types.ObjectId().toString() });
+
+    expect(res.status).toBe(404);
+    const saved = await User.findById(official._id);
+    expect(saved.status).toBe('pending_approval');
+  });
+
+  it('still lets an official be rejected without naming a camp', async () => {
+    const admin = await makeAdmin();
+    const official = await makePendingOfficial();
+
+    const res = await request(app).post(`/api/auth/officials/${official._id}/decision`)
+      .set(bearer(admin)).send({ decision: 'reject' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.user.status).toBe('rejected');
   });
 });

@@ -21,6 +21,7 @@ import { DistributePage } from './features/distribution/DistributePage.jsx';
 import { DistributionHistoryPage } from './features/distribution/DistributionHistoryPage.jsx';
 import { VolunteerDutyPage } from './features/official/VolunteerDutyPage.jsx';
 import { OfficialHomePage } from './features/official/OfficialHomePage.jsx';
+import { OfficialsPage } from './features/admin/OfficialsPage.jsx';
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: false } },
@@ -55,6 +56,7 @@ export default function App() {
                   <Route path="/admin/areas" element={<AreasPage />} />
                   <Route path="/admin/camps" element={<CampsListPage />} />
                   <Route path="/admin/camps/new" element={<CreateCampPage />} />
+                  <Route path="/admin/officials" element={<OfficialsPage />} />
                   <Route path="/admin/resources" element={<ResourceItemsPage />} />
                   <Route path="/admin/inventory" element={<InventoryPage />} />
                   <Route path="/admin/distribution-rules" element={<DistributionRulesPage />} />

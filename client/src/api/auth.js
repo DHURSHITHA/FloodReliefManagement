@@ -37,6 +37,22 @@ export function useLogout() {
   });
 }
 
+export function usePendingOfficials() {
+  return useQuery({
+    queryKey: ['auth', 'pending-officials'],
+    queryFn: async () => (await api.get('/auth/pending-officials')).data.officials,
+  });
+}
+
+export function useDecideOfficial() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, ...payload }) =>
+      (await api.post(`/auth/officials/${id}/decision`, payload)).data.user,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['auth', 'pending-officials'] }),
+  });
+}
+
 /**
  * Restore a session on page load. The access token is gone (it lived in
  * memory), but the httpOnly refresh cookie survives, so one refresh call

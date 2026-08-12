@@ -1,6 +1,7 @@
 import mongoose from 'mongoose';
 import { User, hashPassword } from './user.model.js';
 import { recordAudit } from '../audit/audit.service.js';
+import { getCampById } from '../camps/camps.service.js';
 import { AppError, ERROR_CODES } from '../../core/errors.js';
 import { RefreshToken } from './refreshToken.model.js';
 import {
@@ -128,11 +129,17 @@ export async function decideOfficial({ userId, decision, assigned_camp_id, admin
   const user = await User.findOne({ _id: userId, role: 'camp_official', status: 'pending_approval' });
   if (!user) throw AppError.notFound('No camp official is awaiting approval with that id.');
 
+  // Approving without a camp strands the account: every camp-scoped screen
+  // scopes to assigned_camp_id, and a null scope matches nothing. The schema
+  // requires the field; this confirms the camp is real. Camps are another
+  // module's collection, so the check goes through its service (§3.2).
+  if (decision === 'approve') await getCampById(assigned_camp_id); // throws 404 if absent
+
   const before = { status: user.status };
   user.status = decision === 'approve' ? 'active' : 'rejected';
   user.approved_by = adminId;
   user.approved_at = new Date();
-  if (decision === 'approve' && assigned_camp_id) user.assigned_camp_id = assigned_camp_id;
+  if (decision === 'approve') user.assigned_camp_id = assigned_camp_id;
   await user.save();
 
   await recordAudit({

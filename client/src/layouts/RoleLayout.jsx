@@ -17,6 +17,7 @@ const NAV_BY_ROLE = {
     { to: '/admin', label: 'Dashboard', end: true },
     { to: '/admin/areas', label: 'Areas' },
     { to: '/admin/camps', label: 'Camps' },
+    { to: '/admin/officials', label: 'Officials' },
     { to: '/admin/resources', label: 'Resources' },
     { to: '/admin/inventory', label: 'Inventory' },
     { to: '/admin/distribution-rules', label: 'Rules' },
