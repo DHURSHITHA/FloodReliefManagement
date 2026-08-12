@@ -1,0 +1,34 @@
+{
+  "name": "@frp/server",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "main": "src/server.js",
+  "scripts": {
+    "dev": "node --watch --env-file=../.env src/server.js",
+    "start": "node --env-file=../.env src/server.js",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "seed": "node --env-file=../.env src/scripts/seed.js"
+  },
+  "dependencies": {
+    "@frp/shared": "^1.0.0",
+    "bcryptjs": "^3.0.3",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.6",
+    "express": "^5.2.1",
+    "express-rate-limit": "^8.6.2",
+    "helmet": "^8.3.0",
+    "jsonwebtoken": "^9.0.3",
+    "mongoose": "^9.9.2",
+    "pino": "^10.3.1",
+    "pino-http": "^11.0.0",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "mongodb-memory-server": "^11.2.0",
+    "pino-pretty": "^13.1.3",
+    "supertest": "^7.2.2",
+    "vitest": "^4.1.10"
+  }
+}
