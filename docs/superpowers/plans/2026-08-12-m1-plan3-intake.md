@@ -1086,7 +1086,7 @@ EOF
 - Consumes: `Camp` model (Plan 2)
 - Produces: `reserveVolunteerSlots(campId, requestedCount, session?): Promise<number>` — the number actually granted, `0..requestedCount`
 
-**Why one atomic pipeline update, not a hand-rolled retry loop:** `volunteers_accepted = min(volunteer_capacity, volunteers_accepted + requestedCount)` computed inside a single `findOneAndUpdate` aggregation-pipeline update is already race-free at the document level — no other write can interleave with it. Concurrent transactions racing on the *same* camp document get a MongoDB write conflict, which `withTransaction()` (Plan 1) already retries automatically — spec section 5.3's "compare-and-swap guarded... bounded retry on conflict" describes exactly this mechanism, not something to reimplement by hand.
+**Why a compare-and-swap retry loop, not a single pipeline update:** a `findOneAndUpdate` aggregation-pipeline update computing `min(capacity, accepted + N)` in one atomic step was tried first and rejected — the *stored* count never overshoots, but two concurrent callers each computing their own "granted" return value from a separate before/after read double-counts the grant even though the database itself stayed correct. The classic compare-and-swap — read the count, compute the grant that fits, write conditioned on that exact count still holding, retry on a filter-mismatch — is what spec section 5.3's "compare-and-swap guarded on the value observed... bounded retry on conflict" is literally describing.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -1149,38 +1149,38 @@ Modify `server/src/modules/camps/camps.service.js` — add after `reserveBenefic
  * grant is expected, not an error (spec section 5.3): if three opt in
  * against two remaining slots, exactly two are granted.
  *
- * volunteers_accepted = min(volunteer_capacity, volunteers_accepted + N)
- * computed in one atomic pipeline update — no other write can interleave.
- * Concurrent transactions on the same camp get a MongoDB write conflict,
- * which withTransaction() already retries automatically.
+ * Classic compare-and-swap: read the current count, compute the grant that
+ * fits, then write conditioned on that exact count still holding. If
+ * another write landed in between, the conditional update matches nothing
+ * and this retries with a fresh read — spec section 5.3's "compare-and-swap
+ * guarded on the value observed... bounded retry on conflict", verbatim.
  */
-export async function reserveVolunteerSlots(campId, requestedCount, session) {
+export async function reserveVolunteerSlots(campId, requestedCount, session, attempt = 0) {
   if (requestedCount <= 0) return 0;
+  if (attempt >= 10) return 0; // heavy contention — give up rather than loop forever
 
-  const before = await Camp.findById(campId).session(session);
-  if (!before) return 0;
+  const camp = await Camp.findById(campId).session(session);
+  if (!camp) return 0;
 
-  const after = await Camp.findOneAndUpdate(
-    { _id: campId },
-    [
-      {
-        $set: {
-          volunteers_accepted: {
-            $min: ['$volunteer_capacity', { $add: ['$volunteers_accepted', requestedCount] }],
-          },
-        },
-      },
-    ],
+  const room = Math.max(0, camp.volunteer_capacity - camp.volunteers_accepted);
+  const grant = Math.min(requestedCount, room);
+  if (grant === 0) return 0;
+
+  const updated = await Camp.findOneAndUpdate(
+    { _id: campId, volunteers_accepted: camp.volunteers_accepted },
+    { $inc: { volunteers_accepted: grant } },
     { new: true, session }
   );
 
-  const granted = after.volunteers_accepted - before.volunteers_accepted;
-  if (granted > 0) {
-    recomputeStatus(after);
-    await after.save({ session });
-    broadcastOccupancy(after);
+  if (!updated) {
+    // Someone else changed volunteers_accepted between our read and write — retry.
+    return reserveVolunteerSlots(campId, requestedCount, session, attempt + 1);
   }
-  return granted;
+
+  recomputeStatus(updated);
+  await updated.save({ session });
+  broadcastOccupancy(updated);
+  return grant;
 }
 ```
 

@@ -102,6 +102,50 @@ export async function reserveBeneficiarySlots(campId, n, session) {
 }
 
 /**
+ * Grant up to `requestedCount` volunteer slots, first-come-first-served.
+ * Returns the number actually granted (0..requestedCount) — a partial
+ * grant is expected, not an error (spec section 5.3): if three opt in
+ * against two remaining slots, exactly two are granted.
+ *
+ * Classic compare-and-swap: read the current count, compute the grant that
+ * fits, then write conditioned on that exact count still holding. If
+ * another write landed in between, the conditional update matches nothing
+ * and this retries with a fresh read — spec section 5.3's "compare-and-swap
+ * guarded on the value observed... bounded retry on conflict", verbatim.
+ * (A pipeline-only `$min` update was tried first and rejected: two
+ * concurrent callers each computing their own before/after delta from
+ * separate reads double-counts the grant even though the stored count
+ * itself never overshoots — the return value, not the data, was wrong.)
+ */
+export async function reserveVolunteerSlots(campId, requestedCount, session, attempt = 0) {
+  if (requestedCount <= 0) return 0;
+  if (attempt >= 10) return 0; // heavy contention — give up rather than loop forever
+
+  const camp = await Camp.findById(campId).session(session);
+  if (!camp) return 0;
+
+  const room = Math.max(0, camp.volunteer_capacity - camp.volunteers_accepted);
+  const grant = Math.min(requestedCount, room);
+  if (grant === 0) return 0;
+
+  const updated = await Camp.findOneAndUpdate(
+    { _id: campId, volunteers_accepted: camp.volunteers_accepted },
+    { $inc: { volunteers_accepted: grant } },
+    { new: true, session }
+  );
+
+  if (!updated) {
+    // Someone else changed volunteers_accepted between our read and write — retry.
+    return reserveVolunteerSlots(campId, requestedCount, session, attempt + 1);
+  }
+
+  recomputeStatus(updated);
+  await updated.save({ session });
+  broadcastOccupancy(updated);
+  return grant;
+}
+
+/**
  * Camps with remaining beneficiary capacity, closest to the given point
  * first. Feeds both the landing page and, from Plan 3 onward, the 409
  * "nearest camp" recommendation when a chosen camp is full (spec §5.3).

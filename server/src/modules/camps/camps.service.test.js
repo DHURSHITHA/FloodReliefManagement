@@ -118,3 +118,42 @@ describe('findNearestOpenCamps', () => {
     expect(names.indexOf('Near Camp')).toBeLessThan(names.indexOf('Far Camp'));
   });
 });
+
+describe('reserveVolunteerSlots', () => {
+  beforeEach(async () => { await clearDatabase(); await syncIndexes(); });
+
+  it('grants the full amount when enough slots remain', async () => {
+    const camp = await campsService.createCamp(baseCampInput({ volunteer_capacity: 5 }), actor());
+    const granted = await campsService.reserveVolunteerSlots(camp._id, 3);
+    expect(granted).toBe(3);
+    const saved = await Camp.findById(camp._id);
+    expect(saved.volunteers_accepted).toBe(3);
+  });
+
+  it('grants a partial amount when fewer slots remain than requested', async () => {
+    const camp = await campsService.createCamp(baseCampInput({ volunteer_capacity: 5 }), actor());
+    await campsService.reserveVolunteerSlots(camp._id, 3); // 2 slots left
+    const granted = await campsService.reserveVolunteerSlots(camp._id, 3); // wants 3, only 2 remain
+    expect(granted).toBe(2);
+  });
+
+  it('grants zero once capacity is exhausted', async () => {
+    const camp = await campsService.createCamp(baseCampInput({ volunteer_capacity: 2 }), actor());
+    await campsService.reserveVolunteerSlots(camp._id, 2);
+    expect(await campsService.reserveVolunteerSlots(camp._id, 1)).toBe(0);
+  });
+
+  it('never grants more than capacity under two concurrent requests for the last slot', async () => {
+    const camp = await campsService.createCamp(baseCampInput({ volunteer_capacity: 5 }), actor());
+    await campsService.reserveVolunteerSlots(camp._id, 4); // 1 slot left
+
+    const [a, b] = await Promise.all([
+      campsService.reserveVolunteerSlots(camp._id, 1),
+      campsService.reserveVolunteerSlots(camp._id, 1),
+    ]);
+    expect(a + b).toBe(1);
+
+    const saved = await Camp.findById(camp._id);
+    expect(saved.volunteers_accepted).toBe(5);
+  });
+});

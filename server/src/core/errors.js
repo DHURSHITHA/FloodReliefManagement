@@ -11,6 +11,8 @@ export const ERROR_CODES = Object.freeze({
   TOKEN_INVALID: 'TOKEN_INVALID',
   RATE_LIMITED: 'RATE_LIMITED',
   INTERNAL: 'INTERNAL',
+  DUPLICATE_AADHAAR: 'DUPLICATE_AADHAAR',
+  CAMP_FULL: 'CAMP_FULL',
 });
 
 export class AppError extends Error {
