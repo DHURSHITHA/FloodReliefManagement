@@ -22,6 +22,17 @@ export function emitCampOccupancy(campId, payload) {
   io.emit('camp:occupancy', { campId: String(campId), ...payload });
 }
 
+/** Same no-op-safe contract as emitCampOccupancy. */
+export function emitInventoryChanged(campId, payload) {
+  if (!io) return;
+  io.emit('inventory:changed', { campId: String(campId), ...payload });
+}
+
+export function emitLowStock(campId, payload) {
+  if (!io) return;
+  io.emit('inventory:low_stock', { campId: String(campId), ...payload });
+}
+
 export function getIO() {
   return io;
 }
