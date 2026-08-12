@@ -137,4 +137,36 @@ describe('GET /api/registrations (search) and GET /api/registrations/:code', () 
     const res = await request(app).get('/api/registrations?search=Meena').set(bearer(donor));
     expect(res.status).toBe(403);
   });
+
+  it('lets an official assigned to the camp search it by code', async () => {
+    const admin = await makeUser('admin');
+    const campId = await createCamp(admin);
+    const person = await makeUser('affected_person');
+    const created = await request(app).post('/api/registrations').set(bearer(person)).send(registrationBody(campId));
+    const code = created.body.beneficiary.beneficiary_code;
+    const official = await makeUser('camp_official', { assigned_camp_id: campId });
+
+    const res = await request(app).get(`/api/registrations?search=${code}`).set(bearer(official));
+    expect(res.status).toBe(200);
+    expect(res.body.registrations).toHaveLength(1);
+    expect(res.body.registrations[0].beneficiary.beneficiary_code).toBe(code);
+  });
+
+  it('tells an official with no assigned camp why the search finds nothing', async () => {
+    const admin = await makeUser('admin');
+    const campId = await createCamp(admin);
+    const person = await makeUser('affected_person');
+    const created = await request(app).post('/api/registrations').set(bearer(person)).send(registrationBody(campId));
+    const code = created.body.beneficiary.beneficiary_code;
+    const stranded = await makeUser('camp_official'); // approved, but never assigned a camp
+
+    const search = await request(app).get(`/api/registrations?search=${code}`).set(bearer(stranded));
+    expect(search.status).toBe(403);
+    expect(search.body.error.message).toMatch(/No camp is assigned/i);
+
+    // The Distribute screen's lookup must fail the same legible way.
+    const byCode = await request(app).get(`/api/registrations/${code}`).set(bearer(stranded));
+    expect(byCode.status).toBe(403);
+    expect(byCode.body.error.message).toMatch(/No camp is assigned/i);
+  });
 });

@@ -118,7 +118,22 @@ export async function getMyRegistration(userId) {
   return { beneficiary, members };
 }
 
+/**
+ * A camp official's every read is scoped to their assigned camp. When no camp
+ * has been assigned, `actorCampId` is null — and a null scope silently matches
+ * nothing, so searches came back empty and check-in looked broken with no clue
+ * why. Fail loudly instead: the account needs an admin to assign a camp.
+ */
+function requireCampScope({ actorRole, actorCampId }) {
+  if (actorRole === 'camp_official' && !actorCampId) {
+    throw AppError.forbidden(
+      'No camp is assigned to your account. Ask an administrator to assign you to a camp before checking people in.',
+    );
+  }
+}
+
 export async function getRegistrationByCode(code, { actorRole, actorCampId }) {
+  requireCampScope({ actorRole, actorCampId });
   const beneficiary = await Beneficiary.findOne({ beneficiary_code: code.toUpperCase() });
   if (!beneficiary) throw AppError.notFound('No registration with that code.');
   if (actorRole === 'camp_official' && String(beneficiary.camp_id) !== String(actorCampId)) {
@@ -129,6 +144,7 @@ export async function getRegistrationByCode(code, { actorRole, actorCampId }) {
 }
 
 export async function searchRegistrations({ search, actorRole, actorCampId }) {
+  requireCampScope({ actorRole, actorCampId });
   const campFilter = actorRole === 'camp_official' ? { camp_id: actorCampId } : {};
 
   const byCode = await Beneficiary.findOne({ beneficiary_code: search.toUpperCase(), ...campFilter });
@@ -159,6 +175,7 @@ export async function searchRegistrations({ search, actorRole, actorCampId }) {
  * added overhead isn't justified — a deliberate simplification.
  */
 export async function checkInMember(beneficiaryId, memberId, { actorId, actorRole, actorCampId, ip }) {
+  requireCampScope({ actorRole, actorCampId });
   const beneficiary = await Beneficiary.findById(beneficiaryId);
   if (!beneficiary) throw AppError.notFound('No registration with that id.');
   if (actorRole === 'camp_official' && String(beneficiary.camp_id) !== String(actorCampId)) {
@@ -199,6 +216,7 @@ export async function checkInMember(beneficiaryId, memberId, { actorId, actorRol
  * than in a module of its own for what is mechanically two more fields.
  */
 async function loadVolunteerForActor(memberId, { actorRole, actorCampId }) {
+  requireCampScope({ actorRole, actorCampId });
   const member = await RegistrationMember.findById(memberId);
   if (!member) throw AppError.notFound('No volunteer with that id.');
 
@@ -249,6 +267,7 @@ export async function completeVolunteerDuty(memberId, { hours }, { actorId, acto
 }
 
 export async function listActiveVolunteers({ actorRole, actorCampId }) {
+  requireCampScope({ actorRole, actorCampId });
   const campFilter = actorRole === 'camp_official' ? { camp_id: actorCampId } : {};
   const beneficiaries = await Beneficiary.find(campFilter).select('_id beneficiary_code camp_id');
   const byId = new Map(beneficiaries.map((b) => [b._id.toString(), b]));
