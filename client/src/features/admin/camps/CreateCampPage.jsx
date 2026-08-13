@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Alert, Box, Button, Card, CardContent, Checkbox, FormControlLabel, MenuItem, TextField, Typography } from '@mui/material';
 import { createCampSchema } from '@frp/shared';
 import { useCreateCamp } from '../../../api/camps.js';
+import { useAreas } from '../../../api/areas.js';
 import { toFormErrors } from '../../../api/client.js';
 
 const FACILITY_FIELDS = [
@@ -16,6 +17,7 @@ const twoCol = { display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr
 
 const initialValues = {
   name: '', camp_type: 'community_hall', description: '',
+  linked_area_id: '',
   address: '', area: '', district: '', state: '', pincode: '', latitude: '', longitude: '',
   flood_severity: 'medium',
   beneficiary_capacity: '', volunteer_capacity: '', duration_days: '',
@@ -31,6 +33,7 @@ const initialValues = {
 export function CreateCampPage() {
   const navigate = useNavigate();
   const createCamp = useCreateCamp();
+  const { data: areas = [] } = useAreas();
   const [values, setValues] = useState(initialValues);
   const [fieldErrors, setFieldErrors] = useState({});
   const [formError, setFormError] = useState(null);
@@ -39,10 +42,29 @@ export function CreateCampPage() {
   const toggleFacility = (f) => (e) =>
     setValues((v) => ({ ...v, facilities: { ...v.facilities, [f]: e.target.checked } }));
 
+  /**
+   * Picking an existing area pre-fills the location fields from it — still
+   * editable afterward, since a camp's exact pin may differ slightly from
+   * the area's identified point. Choosing the blank option clears the
+   * link; the camp will get a brand-new area auto-created from whatever
+   * location fields are entered manually (camps.service.js's resolveLinkedArea).
+   */
+  const changeLinkedArea = (e) => {
+    const areaId = e.target.value;
+    const area = areas.find((a) => a.id === areaId);
+    setValues((v) => ({
+      ...v,
+      linked_area_id: areaId,
+      ...(area
+        ? { area: area.name, district: area.district, state: area.state, latitude: String(area.latitude), longitude: String(area.longitude), flood_severity: area.severity }
+        : {}),
+    }));
+  };
+
   async function onSubmit(e) {
     e.preventDefault();
     setFormError(null);
-    const parsed = createCampSchema.safeParse(values);
+    const parsed = createCampSchema.safeParse({ ...values, linked_area_id: values.linked_area_id || undefined });
     if (!parsed.success) {
       setFieldErrors(Object.fromEntries(parsed.error.issues.map((i) => [i.path.join('.'), i.message])));
       return;
@@ -83,6 +105,12 @@ export function CreateCampPage() {
       <Card sx={{ mb: 2 }}>
         <CardContent>
           <Typography sx={{ fontWeight: 600, mb: 2 }}>Location &amp; flood context</Typography>
+          <TextField select label="Link to an existing affected area (optional)" value={values.linked_area_id} onChange={changeLinkedArea}>
+            <MenuItem value="">— Create a new area from this camp's details —</MenuItem>
+            {areas.map((a) => (
+              <MenuItem key={a.id} value={a.id}>{a.name} ({a.district}, {a.state})</MenuItem>
+            ))}
+          </TextField>
           <TextField label="Address" value={values.address} onChange={change('address')}
             error={Boolean(fieldErrors.address)} helperText={fieldErrors.address} />
           <Box sx={twoCol}>

@@ -20,7 +20,7 @@ describe('AreasPage', () => {
 
   it('lists existing areas', async () => {
     api.get.mockResolvedValue({
-      data: { areas: [{ id: '1', name: 'Ward 12', district: 'North District', state: 'Assam', severity: 'high' }] },
+      data: { areas: [{ id: '1', name: 'Ward 12', district: 'North District', state: 'Assam', severity: 'high', latitude: 26.2, longitude: 91.7, has_camp: false }] },
     });
     renderPage();
     expect(await screen.findByText('Ward 12')).toBeInTheDocument();
@@ -41,5 +41,34 @@ describe('AreasPage', () => {
     await userEvent.click(screen.getByRole('button', { name: /record area/i }));
 
     await waitFor(() => expect(api.post).toHaveBeenCalledWith('/areas', expect.objectContaining({ name: 'Ward 5' })));
+  });
+
+  const TWO_AREAS = [
+    { id: '1', name: 'Ward 12', district: 'North District', state: 'Assam', severity: 'high', latitude: 26.2, longitude: 91.7, has_camp: true },
+    { id: '2', name: 'Ward 5', district: 'East District', state: 'Assam', severity: 'low', latitude: 26.3, longitude: 91.8, has_camp: false },
+  ];
+
+  it('plots one dot on the map per area', async () => {
+    api.get.mockResolvedValue({ data: { areas: TWO_AREAS } });
+    renderPage();
+    await screen.findByText('Ward 12');
+    await waitFor(() => expect(document.querySelectorAll('.leaflet-interactive')).toHaveLength(2));
+  });
+
+  it('filters the map dots by whether a camp has been created there', async () => {
+    api.get.mockResolvedValue({ data: { areas: TWO_AREAS } });
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByText('Ward 12');
+    await waitFor(() => expect(document.querySelectorAll('.leaflet-interactive')).toHaveLength(2));
+
+    await user.click(screen.getByRole('button', { name: /^camp created$/i }));
+    await waitFor(() => expect(document.querySelectorAll('.leaflet-interactive')).toHaveLength(1));
+
+    await user.click(screen.getByRole('button', { name: /^no camp yet$/i }));
+    await waitFor(() => expect(document.querySelectorAll('.leaflet-interactive')).toHaveLength(1));
+
+    await user.click(screen.getByRole('button', { name: /^all areas$/i }));
+    await waitFor(() => expect(document.querySelectorAll('.leaflet-interactive')).toHaveLength(2));
   });
 });

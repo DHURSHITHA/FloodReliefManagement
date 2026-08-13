@@ -6,6 +6,10 @@ const TONES = {
   bad: { bg: '#FDECEA', fg: '#C0392B' },
   neutral: { bg: '#F2F2F2', fg: '#6B6B6B' },
   brand: { bg: '#FFF0E4', fg: '#C44E00' },
+  // A true yellow, distinct from warn's brownish amber — added for the
+  // 4-way severity scale (low/medium/high/critical) that needs green,
+  // yellow, orange and red to each read as their own color.
+  gold: { bg: '#FFF6D9', fg: '#8A6D00' },
 };
 
 /** The colored-pill badge used across the design for status, severity, and priority. */

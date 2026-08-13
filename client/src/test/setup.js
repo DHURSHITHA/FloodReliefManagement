@@ -7,3 +7,14 @@ import { configure } from '@testing-library/react';
 // under full-suite contention — close enough to 1s to fail intermittently on
 // timing alone rather than on anything being wrong.
 configure({ asyncUtilTimeout: 5000 });
+
+// jsdom has no ResizeObserver — Leaflet (AreasPage's map) uses one to size
+// itself against its container. A no-op stub is enough for a test that
+// never actually measures pixels.
+if (typeof globalThis.ResizeObserver === 'undefined') {
+  globalThis.ResizeObserver = class ResizeObserver {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  };
+}
