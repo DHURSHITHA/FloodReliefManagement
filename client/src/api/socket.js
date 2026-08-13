@@ -25,3 +25,26 @@ export function useLiveCampUpdates() {
     };
   }, [qc]);
 }
+
+/**
+ * Subscribe to sos:update for the lifetime of the calling component. On
+ * receipt this invalidates both the SOS queries and the dashboard summary —
+ * §6.11 asks for SOS to display "immediately" on the admin dashboard, and
+ * the summary has no other refresh trigger of its own.
+ */
+export function useLiveSosUpdates() {
+  const qc = useQueryClient();
+
+  useEffect(() => {
+    socket.connect();
+    const onUpdate = () => {
+      qc.invalidateQueries({ queryKey: ['sos'] });
+      qc.invalidateQueries({ queryKey: ['dashboard'] });
+    };
+    socket.on('sos:update', onUpdate);
+    return () => {
+      socket.off('sos:update', onUpdate);
+      socket.disconnect();
+    };
+  }, [qc]);
+}
