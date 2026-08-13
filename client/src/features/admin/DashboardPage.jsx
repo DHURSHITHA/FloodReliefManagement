@@ -43,7 +43,7 @@ export function DashboardPage() {
     return <Typography color="text.secondary">Loading dashboard…</Typography>;
   }
 
-  const { camps, beneficiaries, volunteers, inventory, flood_monitoring: flood } = data;
+  const { camps, beneficiaries, volunteers, inventory, flood_monitoring: flood, emergency } = data;
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
@@ -86,6 +86,13 @@ export function DashboardPage() {
       <Group title="Flood monitoring">
         <Stat label="Affected areas" value={flood.affected_areas} to="/admin/areas" />
         <Stat label="Active alerts" value={flood.active_alerts} to="/admin/areas" tone={flood.active_alerts > 0 ? '#C44E00' : undefined} />
+      </Group>
+
+      <Group title="Emergency">
+        <Stat label="Open" value={emergency.open} to="/official/sos" tone={emergency.open > 0 ? '#C0392B' : undefined} />
+        <Stat label="Medical" value={emergency.medical} to="/official/sos" tone={emergency.medical > 0 ? '#C0392B' : undefined} />
+        <Stat label="Security" value={emergency.security} to="/official/sos" tone={emergency.security > 0 ? '#C0392B' : undefined} />
+        <Stat label="Resolved" value={emergency.resolved} to="/official/sos" />
       </Group>
     </Box>
   );

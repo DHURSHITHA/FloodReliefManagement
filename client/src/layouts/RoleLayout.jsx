@@ -16,6 +16,7 @@ const NAV_BY_ROLE = {
   affected_person: [
     { to: '/', label: 'Camps', end: true },
     { to: '/queries', label: 'My queries' },
+    { to: '/sos', label: 'Report emergency' },
   ],
   admin: [
     { to: '/admin', label: 'Dashboard', end: true },
@@ -27,6 +28,7 @@ const NAV_BY_ROLE = {
     { to: '/admin/distribution-rules', label: 'Rules' },
     { to: '/official/distribute', label: 'Distribute' },
     { to: '/official/queries', label: 'Queries' },
+    { to: '/official/sos', label: 'Emergency' },
   ],
   camp_official: [
     { to: '/official', label: 'Home', end: true },
@@ -35,6 +37,7 @@ const NAV_BY_ROLE = {
     { to: '/official/distributions', label: 'History' },
     { to: '/official/volunteers', label: 'Volunteers' },
     { to: '/official/queries', label: 'Queries' },
+    { to: '/official/sos', label: 'Emergency' },
   ],
 };
 

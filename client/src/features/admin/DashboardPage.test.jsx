@@ -17,6 +17,7 @@ const summary = {
   volunteers: { accepted: 5, active: 2, completed: 1 },
   inventory: { total_entries: 8, low_stock: 2, near_expiry: 1, expired: 0 },
   flood_monitoring: { affected_areas: 4, active_alerts: 1 },
+  emergency: { open: 2, medical: 1, security: 1, resolved: 3 },
 };
 
 function renderPage() {
@@ -50,5 +51,14 @@ describe('DashboardPage', () => {
     api.get.mockResolvedValue({ data: summary });
     renderPage();
     expect(await screen.findByText('40 / 100')).toBeInTheDocument();
+  });
+
+  it('renders the Emergency area', async () => {
+    api.get.mockResolvedValue({ data: summary });
+    renderPage();
+    expect(await screen.findByText('Emergency')).toBeInTheDocument();
+    // "Open" collides with the Camps group's own "Open" stat label, so
+    // assert on a figure unique to this group instead.
+    expect(screen.getByText('Medical')).toBeInTheDocument();
   });
 });

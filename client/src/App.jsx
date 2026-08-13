@@ -25,6 +25,8 @@ import { OfficialsPage } from './features/admin/OfficialsPage.jsx';
 import { CampScopeProvider } from './camps/CampScope.jsx';
 import { RaiseComplaintPage } from './features/complaints/RaiseComplaintPage.jsx';
 import { ComplaintsQueuePage } from './features/complaints/ComplaintsQueuePage.jsx';
+import { RaiseSosPage } from './features/sos/RaiseSosPage.jsx';
+import { SosDashboardPage } from './features/sos/SosDashboardPage.jsx';
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: false } },
@@ -56,6 +58,7 @@ export default function App() {
               <Route element={<RequireAuth roles={['affected_person']} />}>
                 <Route element={<RoleLayout />}>
                   <Route path="/queries" element={<RaiseComplaintPage />} />
+                  <Route path="/sos" element={<RaiseSosPage />} />
                 </Route>
               </Route>
 
@@ -82,6 +85,7 @@ export default function App() {
                   <Route path="/official/distributions" element={<DistributionHistoryPage />} />
                   <Route path="/official/volunteers" element={<VolunteerDutyPage />} />
                   <Route path="/official/queries" element={<ComplaintsQueuePage />} />
+                  <Route path="/official/sos" element={<SosDashboardPage />} />
                 </Route>
               </Route>
 
