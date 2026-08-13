@@ -9,7 +9,8 @@
     "start": "node --env-file=../.env src/server.js",
     "test": "vitest run",
     "test:watch": "vitest",
-    "seed": "node --env-file=../.env src/scripts/seed.js"
+    "seed": "node --env-file=../.env src/scripts/seed.js",
+    "backfill-camp-areas": "node --env-file=../.env src/scripts/backfill-camp-areas.js"
   },
   "dependencies": {
     "@frp/shared": "^1.0.0",

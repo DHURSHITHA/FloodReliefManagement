@@ -68,6 +68,31 @@ describe('GET /api/areas', () => {
     expect(res.status).toBe(200);
     expect(res.body.areas).toHaveLength(1);
   });
+
+  it('flags has_camp false for an area nobody has built a camp in yet', async () => {
+    const admin = await makeUser('admin');
+    await request(app).post('/api/areas').set(bearer(admin)).send(areaBody);
+    const res = await request(app).get('/api/areas').set(bearer(admin));
+    expect(res.body.areas[0].has_camp).toBe(false);
+  });
+
+  it('flags has_camp true once a camp links to that area', async () => {
+    const admin = await makeUser('admin');
+    const areaRes = await request(app).post('/api/areas').set(bearer(admin)).send(areaBody);
+
+    await request(app).post('/api/camps').set(bearer(admin)).send({
+      name: 'Riverside Community Hall', camp_type: 'community_hall',
+      address: '12 River Road', area: 'Ward 12', district: 'North District', state: 'Assam', pincode: '781001',
+      latitude: 26.2, longitude: 91.7, linked_area_id: areaRes.body.area.id, flood_severity: 'high',
+      beneficiary_capacity: 400, volunteer_capacity: 30, duration_days: 14,
+      nearest_hospital_name: 'District Hospital', nearest_hospital_contact: '0484-2000000',
+      nearest_police_name: 'Ward 12 Police Station', nearest_police_contact: '0484-2100000',
+    });
+
+    const res = await request(app).get('/api/areas').set(bearer(admin));
+    expect(res.body.areas).toHaveLength(1);
+    expect(res.body.areas[0].has_camp).toBe(true);
+  });
 });
 
 describe('flood alerts', () => {

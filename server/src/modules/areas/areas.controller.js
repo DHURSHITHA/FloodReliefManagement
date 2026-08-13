@@ -7,7 +7,7 @@ export async function createAreaHandler(req, res) {
 
 export async function listAreasHandler(req, res) {
   const areas = await areasService.listAreas();
-  res.json({ areas: areas.map((a) => a.toSafeJSON()) });
+  res.json({ areas });
 }
 
 export async function createAlertHandler(req, res) {

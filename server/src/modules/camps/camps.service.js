@@ -4,6 +4,11 @@ import { deriveCampStatus } from './camp.status.js';
 import { AppError } from '../../core/errors.js';
 import { recordAudit } from '../audit/audit.service.js';
 import { emitCampOccupancy } from '../../core/socket.js';
+// Writes to `affected_areas` go through areas.service.js, never straight to
+// its model — the M1 spec section 3.2 module-ownership rule, the same
+// discipline donations.service.js follows when it posts stock through
+// resources.service.js's receiveStock rather than the Inventory model.
+import { createArea, getAreaById } from '../areas/areas.service.js';
 
 function recomputeStatus(camp) {
   camp.status = deriveCampStatus({
@@ -23,10 +28,45 @@ function broadcastOccupancy(camp) {
   });
 }
 
+/**
+ * Every camp is linked to an affected area — chosen or, if none was chosen,
+ * created here from the camp's own location fields. This is what makes the
+ * Areas map's "camp created" filter trustworthy: an area only ever appears
+ * unlinked because no camp has genuinely been built there yet, never
+ * because a camp forgot to say so.
+ */
+async function resolveLinkedArea(input, { actorId, actorRole, ip }) {
+  if (input.linked_area_id) {
+    // A bad reference inside a create payload is the caller's mistake, not
+    // a missing resource — 400, not 404, the same convention
+    // donations.service.js uses for an unknown resource_item_id.
+    try {
+      const area = await getAreaById(input.linked_area_id);
+      return area._id;
+    } catch {
+      throw AppError.badRequest(
+        'Choose a valid affected area.',
+        [{ path: 'linked_area_id', message: 'That area no longer exists.' }]
+      );
+    }
+  }
+  const area = await createArea(
+    {
+      name: input.area, district: input.district, state: input.state, address: input.address,
+      latitude: input.latitude, longitude: input.longitude, severity: input.flood_severity,
+      source: `Auto-created when camp "${input.name}" was registered`,
+    },
+    { actorId, actorRole, ip }
+  );
+  return area._id;
+}
+
 export async function createCamp(input, { actorId, actorRole, ip }) {
   const { latitude, longitude, ...rest } = input;
+  const linked_area_id = await resolveLinkedArea(input, { actorId, actorRole, ip });
   const camp = new Camp({
     ...rest,
+    linked_area_id,
     location: { type: 'Point', coordinates: [longitude, latitude] },
     created_by: actorId,
   });

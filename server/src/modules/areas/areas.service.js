@@ -1,5 +1,11 @@
 import { AffectedArea } from './affectedArea.model.js';
 import { FloodAlert } from './floodAlert.model.js';
+// Read-only cross-module model access for aggregation, the same precedent
+// dashboard.service.js and distribution.service.js already establish (M1
+// spec section 3.2) — this module still owns every write to `camps`
+// through camps.service.js; it only ever reads camps here, to compute
+// has_camp below.
+import { Camp } from '../camps/camp.model.js';
 import { AppError } from '../../core/errors.js';
 import { recordAudit } from '../audit/audit.service.js';
 
@@ -19,8 +25,26 @@ export async function createArea(input, { actorId, actorRole, ip }) {
   return area;
 }
 
+export async function getAreaById(areaId) {
+  const area = await AffectedArea.findById(areaId);
+  if (!area) throw AppError.notFound('No affected area with that id.');
+  return area;
+}
+
+/**
+ * Every area, each flagged with whether a camp has actually been built
+ * there yet — the flag the Areas map's "camp created / no camp yet" filter
+ * reads. Derived at read time from `camps.linked_area_id`, never stored on
+ * the area itself (this codebase's standing rule against denormalised
+ * totals, applied here to a boolean instead of a sum).
+ */
 export async function listAreas() {
-  return AffectedArea.find().sort({ createdAt: -1 });
+  const [areas, linkedAreaIds] = await Promise.all([
+    AffectedArea.find().sort({ createdAt: -1 }),
+    Camp.distinct('linked_area_id', { linked_area_id: { $ne: null } }),
+  ]);
+  const linked = new Set(linkedAreaIds.map(String));
+  return areas.map((area) => ({ ...area.toSafeJSON(), has_camp: linked.has(area.id) }));
 }
 
 export async function createAlert(areaId, input, { actorId, actorRole, ip }) {

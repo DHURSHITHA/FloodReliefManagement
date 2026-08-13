@@ -49,6 +49,42 @@ describe('POST /api/camps', () => {
   });
 });
 
+describe('POST /api/camps — area linkage', () => {
+  beforeEach(async () => { await clearDatabase(); await syncIndexes(); });
+
+  it('auto-creates an affected area from the camp’s own location when none is chosen', async () => {
+    const admin = await makeUser('admin');
+    const res = await request(app).post('/api/camps').set(bearer(admin)).send(campBody());
+    expect(res.status).toBe(201);
+    expect(res.body.camp.linked_area_id).toMatch(/^[0-9a-fA-F]{24}$/);
+
+    const areas = await request(app).get('/api/areas').set(bearer(admin));
+    expect(areas.body.areas).toHaveLength(1);
+    expect(areas.body.areas[0]).toMatchObject({ name: 'Ward 12', district: 'North District', severity: 'high', has_camp: true });
+  });
+
+  it('links to an existing area instead of creating a second one when linked_area_id is given', async () => {
+    const admin = await makeUser('admin');
+    const areaRes = await request(app).post('/api/areas').set(bearer(admin)).send({
+      name: 'Ward 12', district: 'North District', state: 'Assam',
+      address: 'Near river embankment', latitude: 26.2, longitude: 91.7, severity: 'high',
+    });
+
+    const res = await request(app).post('/api/camps').set(bearer(admin)).send(campBody({ linked_area_id: areaRes.body.area.id }));
+    expect(res.status).toBe(201);
+    expect(res.body.camp.linked_area_id).toBe(areaRes.body.area.id);
+
+    const areas = await request(app).get('/api/areas').set(bearer(admin));
+    expect(areas.body.areas).toHaveLength(1); // no second area was created
+  });
+
+  it('rejects a linked_area_id that does not exist', async () => {
+    const admin = await makeUser('admin');
+    const res = await request(app).post('/api/camps').set(bearer(admin)).send(campBody({ linked_area_id: '000000000000000000000000' }));
+    expect(res.status).toBe(400);
+  });
+});
+
 describe('GET /api/camps', () => {
   beforeEach(async () => { await clearDatabase(); await syncIndexes(); });
 
