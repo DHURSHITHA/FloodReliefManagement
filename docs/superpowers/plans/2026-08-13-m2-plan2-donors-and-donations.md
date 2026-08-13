@@ -2087,9 +2087,12 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { DonorProfilePage } from './DonorProfilePage.jsx';
 import { api } from '../../api/client.js';
 
+// patch: vi.fn() included from the start, not just get/post -- Task 12's
+// DonationReviewPage tests call api.patch.mockResolvedValue directly, and
+// without a stub here that hits the real axios method instead.
 vi.mock('../../api/client.js', async (orig) => {
   const actual = await orig();
-  return { ...actual, api: { ...actual.api, get: vi.fn(), post: vi.fn() } };
+  return { ...actual, api: { ...actual.api, get: vi.fn(), post: vi.fn(), patch: vi.fn() } };
 });
 
 // Wrapped in MemoryRouter, not just QueryClientProvider: Task 11's
