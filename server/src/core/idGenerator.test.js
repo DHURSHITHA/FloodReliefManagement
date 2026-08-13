@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { nextBeneficiaryCode, nextSosCode } from './idGenerator.js';
+import { nextBeneficiaryCode, nextSosCode, nextDonationCode } from './idGenerator.js';
 import { clearDatabase } from '../test/helpers.js';
 
 describe('nextBeneficiaryCode', () => {
@@ -34,6 +34,25 @@ describe('nextSosCode', () => {
 
   it('never issues the same code twice under concurrent calls', async () => {
     const codes = await Promise.all(Array.from({ length: 10 }, () => nextSosCode()));
+    expect(new Set(codes).size).toBe(10);
+  });
+});
+
+describe('nextDonationCode', () => {
+  beforeEach(async () => { await clearDatabase(); });
+
+  it('starts at DON-1001', async () => {
+    expect(await nextDonationCode()).toBe('DON-1001');
+  });
+
+  it('increments independently of the other counters', async () => {
+    await nextBeneficiaryCode();
+    await nextSosCode();
+    expect(await nextDonationCode()).toBe('DON-1001');
+  });
+
+  it('never issues the same code twice under concurrent calls', async () => {
+    const codes = await Promise.all(Array.from({ length: 10 }, () => nextDonationCode()));
     expect(new Set(codes).size).toBe(10);
   });
 });

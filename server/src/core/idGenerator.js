@@ -28,3 +28,6 @@ export const nextComplaintCode = (session) => nextCode('complaint_code', 'CMP', 
 
 /** The SOS record id implied by §6.11's field list. */
 export const nextSosCode = (session) => nextCode('sos_code', 'SOS', session);
+
+/** The "Donation ID" of §6.13. */
+export const nextDonationCode = (session) => nextCode('donation_code', 'DON', session);
