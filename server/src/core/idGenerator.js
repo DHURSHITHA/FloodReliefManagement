@@ -7,23 +7,24 @@ const counterSchema = new mongoose.Schema(
 
 const Counter = mongoose.model('Counter', counterSchema);
 
-/** Atomic $inc + upsert — the only race-free way to hand out sequential
- * Beneficiary IDs under concurrent registrations (spec section 4.2). */
-export async function nextBeneficiaryCode(session) {
+/**
+ * Atomic $inc + upsert — the only race-free way to hand out sequential
+ * human-facing codes under concurrent requests (spec section 4.2). Counting
+ * documents races under concurrent submission; this does not.
+ */
+async function nextCode(counterKey, prefix, session) {
   const counter = await Counter.findOneAndUpdate(
-    { _id: 'beneficiary_code' },
+    { _id: counterKey },
     { $inc: { seq: 1 } },
     { new: true, upsert: true, session }
   );
-  return `BEN-${1000 + counter.seq}`;
+  return `${prefix}-${1000 + counter.seq}`;
 }
 
-/** Same atomic counter, own sequence — the "Complaint ID" of §6.10. */
-export async function nextComplaintCode(session) {
-  const counter = await Counter.findOneAndUpdate(
-    { _id: 'complaint_code' },
-    { $inc: { seq: 1 } },
-    { new: true, upsert: true, session }
-  );
-  return `CMP-${1000 + counter.seq}`;
-}
+export const nextBeneficiaryCode = (session) => nextCode('beneficiary_code', 'BEN', session);
+
+/** The "Complaint ID" of §6.10. */
+export const nextComplaintCode = (session) => nextCode('complaint_code', 'CMP', session);
+
+/** The SOS record id implied by §6.11's field list. */
+export const nextSosCode = (session) => nextCode('sos_code', 'SOS', session);
