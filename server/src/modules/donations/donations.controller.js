@@ -33,3 +33,16 @@ export async function decideDonationHandler(req, res) {
   });
   res.json({ donation: donation.toSafeJSON() });
 }
+
+export async function listMyDonationsHandler(req, res) {
+  const rows = await donationsService.listMyDonations(req.user.id);
+  res.json({ donations: rows.map(toDonationJSON) });
+}
+
+export async function listDonationsHandler(req, res) {
+  const rows = await donationsService.listDonations({
+    status: req.validatedQuery?.status,
+    donation_type: req.validatedQuery?.donation_type,
+  });
+  res.json({ donations: rows.map(toDonationJSON) });
+}

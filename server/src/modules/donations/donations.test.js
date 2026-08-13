@@ -338,3 +338,67 @@ describe('deciding a donation (requirements §4.1, §4.2 of the M2 design)', () 
     expect(res.status).toBe(403);
   });
 });
+
+describe('listing donations', () => {
+  beforeEach(async () => { await clearDatabase(); await syncIndexes(); });
+
+  it('shows a donor only their own donations, materials included', async () => {
+    const admin = await makeUser('admin');
+    const itemRes = await request(app).post('/api/resources').set(bearer(admin)).send({ name: 'Rice', category: 'food', unit: 'kg' });
+    const donorA = await makeDonor({ name: 'Meera Iyer' });
+    const donorB = await makeDonor({ name: 'Arjun Nair' });
+
+    await request(app).post('/api/donations').set(bearer(donorA)).send({
+      donation_type: 'material', materials: [{ resource_item_id: itemRes.body.item.id, quantity: 50, unit: 'kg' }],
+    });
+    await request(app).post('/api/donations').set(bearer(donorB)).send({ donation_type: 'financial', amount: 1000, payment_method: 'cash' });
+
+    const res = await request(app).get('/api/donations/mine').set(bearer(donorA));
+    expect(res.status).toBe(200);
+    expect(res.body.donations).toHaveLength(1);
+    expect(res.body.donations[0].materials).toHaveLength(1);
+    expect(res.body.donations[0].materials[0].item_label).toBe('Rice');
+  });
+
+  it('shows an empty list for a donor with no donations yet', async () => {
+    const donor = await makeDonor();
+    const res = await request(app).get('/api/donations/mine').set(bearer(donor));
+    expect(res.body.donations).toEqual([]);
+  });
+
+  it('lets an admin list every donation, filterable by status', async () => {
+    const admin = await makeUser('admin');
+    const donor = await makeDonor();
+    const created = await request(app).post('/api/donations').set(bearer(donor)).send({ donation_type: 'financial', amount: 1000, payment_method: 'cash' });
+    await request(app).patch(`/api/donations/${created.body.donation.id}/confirm`).set(bearer(admin)).send({ action: 'confirm' });
+    await request(app).post('/api/donations').set(bearer(donor)).send({ donation_type: 'financial', amount: 500, payment_method: 'cash' });
+
+    const pending = await request(app).get('/api/donations?status=pending').set(bearer(admin));
+    expect(pending.body.donations).toHaveLength(1);
+    expect(pending.body.donations[0].status).toBe('pending');
+
+    const all = await request(app).get('/api/donations').set(bearer(admin));
+    expect(all.body.donations).toHaveLength(2);
+  });
+
+  it('shows the admin the donor\'s name on each donation', async () => {
+    const admin = await makeUser('admin');
+    const donor = await makeDonor({ name: 'Meera Iyer' });
+    await request(app).post('/api/donations').set(bearer(donor)).send({ donation_type: 'financial', amount: 1000, payment_method: 'cash' });
+
+    const res = await request(app).get('/api/donations').set(bearer(admin));
+    expect(res.body.donations[0].donor_name).toBe('Meera Iyer');
+  });
+
+  it('refuses a donor listing every donation', async () => {
+    const donor = await makeDonor();
+    const res = await request(app).get('/api/donations').set(bearer(donor));
+    expect(res.status).toBe(403);
+  });
+
+  it('refuses an admin reading /donations/mine', async () => {
+    const admin = await makeUser('admin');
+    const res = await request(app).get('/api/donations/mine').set(bearer(admin));
+    expect(res.status).toBe(403);
+  });
+});

@@ -201,3 +201,50 @@ export async function decideDonation(donationId, { action, rejection_reason }, {
     ? rejectDonation(donationId, rejection_reason, { actorId, actorRole, ip })
     : confirmDonation(donationId, { actorId, actorRole, ip });
 }
+
+/**
+ * Materials and donor identity, joined in application code rather than
+ * $lookup: this module owns all three collections directly, so a plain
+ * batched find is simpler than an aggregation pipeline for the volumes
+ * involved, and keeps every other function in this file reading the same way.
+ */
+async function enrichDonations(donations) {
+  const materialDonationIds = donations.filter((d) => d.donation_type === 'material').map((d) => d._id);
+  const donorIds = [...new Set(donations.map((d) => d.donor_id.toString()))];
+
+  const [materials, donors] = await Promise.all([
+    materialDonationIds.length ? DonationMaterial.find({ donation_id: { $in: materialDonationIds } }) : [],
+    Donor.find({ _id: { $in: donorIds } }),
+  ]);
+
+  const materialsByDonation = new Map();
+  materials.forEach((m) => {
+    const key = m.donation_id.toString();
+    if (!materialsByDonation.has(key)) materialsByDonation.set(key, []);
+    materialsByDonation.get(key).push(m);
+  });
+  const donorsById = new Map(donors.map((d) => [d._id.toString(), d]));
+
+  return donations.map((donation) => ({
+    donation,
+    materials: materialsByDonation.get(donation._id.toString()) ?? [],
+    donor: donorsById.get(donation.donor_id.toString()) ?? null,
+  }));
+}
+
+/** The donor's own history, newest first. */
+export async function listMyDonations(actorId) {
+  const donor = await Donor.findOne({ user_id: actorId });
+  if (!donor) return [];
+  const donations = await Donation.find({ donor_id: donor._id }).sort({ createdAt: -1 });
+  return enrichDonations(donations);
+}
+
+/** The admin's review queue, optionally narrowed by status or type. */
+export async function listDonations({ status, donation_type } = {}) {
+  const filter = {};
+  if (status) filter.status = status;
+  if (donation_type) filter.donation_type = donation_type;
+  const donations = await Donation.find(filter).sort({ createdAt: -1 }).limit(200);
+  return enrichDonations(donations);
+}

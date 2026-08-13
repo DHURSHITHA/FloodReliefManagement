@@ -1,10 +1,13 @@
 import { Router } from 'express';
-import { upsertDonorProfileSchema, createDonationSchema, donationDecisionSchema } from '@frp/shared';
+import {
+  upsertDonorProfileSchema, createDonationSchema, donationDecisionSchema, listDonationsQuerySchema,
+} from '@frp/shared';
 import { validate } from '../../middleware/validate.js';
 import { authenticate } from '../../middleware/authenticate.js';
 import { authorize } from '../../middleware/authorize.js';
 import {
   upsertMyDonorProfileHandler, getMyDonorProfileHandler, raiseDonationHandler, decideDonationHandler,
+  listMyDonationsHandler, listDonationsHandler,
 } from './donations.controller.js';
 
 export const donationsRouter = Router();
@@ -26,4 +29,15 @@ donationsRouter.patch(
   authorize('admin'),
   validate(donationDecisionSchema),
   decideDonationHandler
+);
+
+// /mine declared as its own literal segment, the same convention every
+// prior "mine" route in this codebase follows.
+donationsRouter.get('/donations/mine', authenticate, authorize('donor'), listMyDonationsHandler);
+donationsRouter.get(
+  '/donations',
+  authenticate,
+  authorize('admin'),
+  validate(listDonationsQuerySchema, 'query'),
+  listDonationsHandler
 );
