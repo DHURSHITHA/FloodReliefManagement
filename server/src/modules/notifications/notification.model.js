@@ -6,7 +6,7 @@ const notificationSchema = new mongoose.Schema(
     type: {
       type: String,
       required: true,
-      enum: ['low_stock', 'expiry', 'complaint', 'complaint_update', 'other'],
+      enum: ['low_stock', 'expiry', 'complaint', 'complaint_update', 'sos', 'sos_update', 'other'],
       default: 'other',
     },
     message: { type: String, required: true, trim: true, maxlength: 500 },

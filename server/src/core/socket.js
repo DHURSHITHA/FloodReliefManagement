@@ -33,6 +33,12 @@ export function emitLowStock(campId, payload) {
   io.emit('inventory:low_stock', { campId: String(campId), ...payload });
 }
 
+/** Same no-op-safe contract as emitCampOccupancy. */
+export function emitSosUpdate(campId, payload) {
+  if (!io) return;
+  io.emit('sos:update', { campId: String(campId), ...payload });
+}
+
 export function getIO() {
   return io;
 }
