@@ -4,6 +4,7 @@ import { RegistrationMember } from '../intake/registrationMember.model.js';
 import { Inventory } from '../resources/inventory.model.js';
 import { AffectedArea } from '../areas/affectedArea.model.js';
 import { FloodAlert } from '../areas/floodAlert.model.js';
+import { getSosDashboardCounts } from '../sos/sos.service.js';
 import { isLowStock, isNearExpiry, isExpired } from '@frp/shared';
 
 /**
@@ -46,6 +47,8 @@ export async function getDashboardSummary() {
     FloodAlert.countDocuments({ status: 'active' }),
   ]);
 
+  const emergency = await getSosDashboardCounts();
+
   const capacityTotals = campCapacity[0] ?? { capacity: 0, accepted: 0 };
 
   return {
@@ -75,5 +78,6 @@ export async function getDashboardSummary() {
       affected_areas: affectedAreas,
       active_alerts: activeAlerts,
     },
+    emergency,
   };
 }

@@ -84,4 +84,24 @@ describe('GET /api/dashboard/summary', () => {
     const res = await request(app).get('/api/dashboard/summary').set(bearer(donor));
     expect(res.status).toBe(403);
   });
+
+  it('adds an Emergency area with open, medical, security, and resolved counts', async () => {
+    const admin = await makeUser('admin');
+    const campRes = await request(app).post('/api/camps').set(bearer(admin)).send(campBody);
+    const person = await makeUser('affected_person');
+
+    const sosRes = await request(app).post('/api/sos').set(bearer(person)).send({
+      camp_id: campRes.body.camp.id, category: 'medical', urgency: 'critical',
+      description: 'Chest pains, needs help now.', location: 'Tent 4',
+    });
+    await request(app).post('/api/sos').set(bearer(person)).send({
+      camp_id: campRes.body.camp.id, category: 'security', urgency: 'high',
+      description: 'A fight has broken out near the gate.', location: 'Main gate',
+    });
+    await request(app).patch(`/api/sos/${sosRes.body.sos.id}`).set(bearer(admin))
+      .send({ status: 'resolved', note: 'Handled.' });
+
+    const res = await request(app).get('/api/dashboard/summary').set(bearer(admin));
+    expect(res.body.emergency).toEqual({ open: 1, medical: 0, security: 1, resolved: 1 });
+  });
 });
