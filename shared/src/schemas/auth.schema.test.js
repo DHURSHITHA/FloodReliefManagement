@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { signupSchema, loginSchema } from './auth.schema.js';
+import { signupSchema, loginSchema, assignCampsSchema } from './auth.schema.js';
 
 const valid = {
   name: 'Asha Kumari',
@@ -56,5 +56,21 @@ describe('loginSchema', () => {
 
   it('rejects a blank identifier', () => {
     expect(loginSchema.safeParse({ identifier: '', password: 'x'.repeat(12) }).success).toBe(false);
+  });
+});
+
+describe('assignCampsSchema', () => {
+  it('accepts one or more valid camp ids', () => {
+    expect(assignCampsSchema.safeParse({ camp_ids: ['64b64b64b64b64b64b64b64b'] }).success).toBe(true);
+  });
+
+  it('rejects an empty list', () => {
+    const result = assignCampsSchema.safeParse({ camp_ids: [] });
+    expect(result.success).toBe(false);
+    expect(JSON.stringify(result.error.issues)).toMatch(/choose at least one camp/i);
+  });
+
+  it('rejects a malformed camp id', () => {
+    expect(assignCampsSchema.safeParse({ camp_ids: ['not-an-id'] }).success).toBe(false);
   });
 });

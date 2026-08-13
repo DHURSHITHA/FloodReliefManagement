@@ -48,11 +48,27 @@ export async function pendingOfficialsHandler(req, res) {
   res.json({ officials: officials.map((u) => u.toSafeJSON()) });
 }
 
+export async function officialsHandler(req, res) {
+  const officials = await authService.listOfficials();
+  res.json({ officials: officials.map((u) => u.toSafeJSON()) });
+}
+
 export async function officialDecisionHandler(req, res) {
   const user = await authService.decideOfficial({
     userId: req.params.id,
     decision: req.body.decision,
     assigned_camp_ids: req.body.assigned_camp_ids,
+    adminId: req.user.id,
+    adminRole: req.user.role,
+    ip: req.ip,
+  });
+  res.json({ user: user.toSafeJSON() });
+}
+
+export async function assignCampsHandler(req, res) {
+  const user = await authService.assignCamps({
+    userId: req.params.id,
+    camp_ids: req.body.camp_ids,
     adminId: req.user.id,
     adminRole: req.user.role,
     ip: req.ip,

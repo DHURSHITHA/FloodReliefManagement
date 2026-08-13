@@ -1,12 +1,12 @@
 import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
-import { signupSchema, loginSchema, officialDecisionSchema } from '@frp/shared';
+import { signupSchema, loginSchema, officialDecisionSchema, assignCampsSchema } from '@frp/shared';
 import { validate } from '../../middleware/validate.js';
 import { authenticate } from '../../middleware/authenticate.js';
 import { authorize } from '../../middleware/authorize.js';
 import {
   signupHandler, loginHandler, refreshHandler, logoutHandler, meHandler,
-  pendingOfficialsHandler, officialDecisionHandler,
+  pendingOfficialsHandler, officialsHandler, officialDecisionHandler, assignCampsHandler,
 } from './auth.controller.js';
 
 // Credential endpoints are the ones worth brute-forcing, so they are limited.
@@ -26,10 +26,18 @@ authRouter.post('/logout', logoutHandler);
 authRouter.get('/me', authenticate, meHandler);
 
 authRouter.get('/pending-officials', authenticate, authorize('admin'), pendingOfficialsHandler);
+authRouter.get('/officials', authenticate, authorize('admin'), officialsHandler);
 authRouter.post(
   '/officials/:id/decision',
   authenticate,
   authorize('admin'),
   validate(officialDecisionSchema),
   officialDecisionHandler
+);
+authRouter.patch(
+  '/officials/:id/camps',
+  authenticate,
+  authorize('admin'),
+  validate(assignCampsSchema),
+  assignCampsHandler
 );

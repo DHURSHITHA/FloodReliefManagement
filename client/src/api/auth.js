@@ -44,12 +44,33 @@ export function usePendingOfficials() {
   });
 }
 
+/** Every camp official — pending, active, rejected, disabled — newest signup first. */
+export function useOfficials() {
+  return useQuery({
+    queryKey: ['auth', 'officials'],
+    queryFn: async () => (await api.get('/auth/officials')).data.officials,
+  });
+}
+
 export function useDecideOfficial() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, ...payload }) =>
       (await api.post(`/auth/officials/${id}/decision`, payload)).data.user,
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['auth', 'pending-officials'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['auth', 'pending-officials'] });
+      qc.invalidateQueries({ queryKey: ['auth', 'officials'] });
+    },
+  });
+}
+
+/** The "+" action on an active official's card — adds camps without dropping existing ones. */
+export function useAssignCamps() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, camp_ids }) =>
+      (await api.patch(`/auth/officials/${id}/camps`, { camp_ids })).data.user,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['auth', 'officials'] }),
   });
 }
 

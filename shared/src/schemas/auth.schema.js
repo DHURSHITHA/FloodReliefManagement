@@ -48,3 +48,10 @@ export const officialDecisionSchema = z.object({
     });
   }
 });
+
+/** Adds camps to an already-active official — the "+" affordance on the officials list. */
+export const assignCampsSchema = z.object({
+  camp_ids: z
+    .array(z.string().regex(/^[0-9a-fA-F]{24}$/, 'Invalid camp id.'))
+    .min(1, 'Choose at least one camp to add.'),
+});

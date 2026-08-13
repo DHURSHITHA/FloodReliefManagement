@@ -125,6 +125,15 @@ export async function listPendingOfficials() {
   return User.find({ role: 'camp_official', status: 'pending_approval' }).sort({ createdAt: 1 });
 }
 
+/**
+ * The admin Officials page shows every camp official — pending, active,
+ * rejected, disabled — as one roster, newest signup first, so a fresh
+ * registration surfaces immediately alongside officials already running camps.
+ */
+export async function listOfficials() {
+  return User.find({ role: 'camp_official' }).sort({ createdAt: -1 });
+}
+
 export async function decideOfficial({ userId, decision, assigned_camp_ids = [], adminId, adminRole, ip }) {
   const user = await User.findOne({ _id: userId, role: 'camp_official', status: 'pending_approval' });
   if (!user) throw AppError.notFound('No camp official is awaiting approval with that id.');
@@ -152,6 +161,42 @@ export async function decideOfficial({ userId, decision, assigned_camp_ids = [],
     record_id: user._id,
     before,
     after: { status: user.status, assigned_camp_ids: (user.assigned_camp_ids ?? []).map(String) },
+    ip,
+  });
+
+  return user;
+}
+
+/**
+ * The "+" affordance on an already-approved official's card: adds camps to
+ * their run list without disturbing the ones they already have. Camps are
+ * merged, not replaced, so this cannot accidentally drop an existing
+ * assignment — and it goes through the camps module's own service (§3.2)
+ * rather than touching the Camp model directly.
+ */
+export async function assignCamps({ userId, camp_ids, adminId, adminRole, ip }) {
+  const user = await User.findOne({ _id: userId, role: 'camp_official' });
+  if (!user) throw AppError.notFound('No camp official exists with that id.');
+  if (user.status !== 'active') {
+    throw AppError.badRequest('Only an active official can be assigned more camps.');
+  }
+
+  await Promise.all(camp_ids.map((id) => getCampById(id))); // throws 404 on the first absent one
+
+  const before = { assigned_camp_ids: user.assigned_camp_ids.map(String) };
+  const merged = new Set(before.assigned_camp_ids);
+  camp_ids.forEach((id) => merged.add(id));
+  user.assigned_camp_ids = [...merged];
+  await user.save();
+
+  await recordAudit({
+    actor_id: adminId,
+    actor_role: adminRole,
+    action: 'user.official_camps_assigned',
+    module: 'auth',
+    record_id: user._id,
+    before,
+    after: { assigned_camp_ids: user.assigned_camp_ids.map(String) },
     ip,
   });
 

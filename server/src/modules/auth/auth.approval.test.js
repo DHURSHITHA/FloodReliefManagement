@@ -177,3 +177,128 @@ describe('camp official approval', () => {
     expect(res.body.user.status).toBe('rejected');
   });
 });
+
+describe('listing every camp official', () => {
+  beforeEach(async () => { await clearDatabase(); await syncIndexes(); });
+
+  it('returns pending, active and rejected officials together, newest first', async () => {
+    const admin = await makeAdmin();
+    const oldest = await makePendingOfficial('9876543212');
+    await new Promise((r) => setTimeout(r, 5));
+    const campId = await makeCamp(admin);
+    await request(app).post(`/api/auth/officials/${oldest._id}/decision`)
+      .set(bearer(admin)).send({ decision: 'approve', assigned_camp_ids: [campId] });
+    await new Promise((r) => setTimeout(r, 5));
+    const newest = await makePendingOfficial('9876543213');
+
+    const res = await request(app).get('/api/auth/officials').set(bearer(admin));
+    expect(res.status).toBe(200);
+    expect(res.body.officials.map((o) => o.id)).toEqual([newest._id.toString(), oldest._id.toString()]);
+    expect(res.body.officials[1].status).toBe('active');
+    expect(res.body.officials[1].assigned_camp_ids).toEqual([campId]);
+  });
+
+  it('refuses the full list to a non-admin', async () => {
+    const official = await makePendingOfficial();
+    await User.updateOne({ _id: official._id }, { status: 'active' });
+    const active = await User.findById(official._id);
+    const res = await request(app).get('/api/auth/officials').set(bearer(active));
+    expect(res.status).toBe(403);
+  });
+});
+
+describe('assigning more camps to an active official', () => {
+  beforeEach(async () => { await clearDatabase(); await syncIndexes(); });
+
+  async function makeActiveOfficial(admin, campId) {
+    const official = await makePendingOfficial();
+    await request(app).post(`/api/auth/officials/${official._id}/decision`)
+      .set(bearer(admin)).send({ decision: 'approve', assigned_camp_ids: [campId] });
+    return official;
+  }
+
+  it('adds a second camp without dropping the first', async () => {
+    const admin = await makeAdmin();
+    const campA = await makeCamp(admin);
+    const official = await makeActiveOfficial(admin, campA);
+    const campB = await makeCamp(admin);
+
+    const res = await request(app).patch(`/api/auth/officials/${official._id}/camps`)
+      .set(bearer(admin)).send({ camp_ids: [campB] });
+
+    expect(res.status).toBe(200);
+    expect(res.body.user.assigned_camp_ids.sort()).toEqual([campA, campB].sort());
+  });
+
+  it('does not duplicate a camp the official already runs', async () => {
+    const admin = await makeAdmin();
+    const campA = await makeCamp(admin);
+    const official = await makeActiveOfficial(admin, campA);
+
+    const res = await request(app).patch(`/api/auth/officials/${official._id}/camps`)
+      .set(bearer(admin)).send({ camp_ids: [campA] });
+
+    expect(res.status).toBe(200);
+    expect(res.body.user.assigned_camp_ids).toEqual([campA]);
+  });
+
+  it('refuses to assign camps to an official still pending approval', async () => {
+    const admin = await makeAdmin();
+    const campId = await makeCamp(admin);
+    const official = await makePendingOfficial();
+
+    const res = await request(app).patch(`/api/auth/officials/${official._id}/camps`)
+      .set(bearer(admin)).send({ camp_ids: [campId] });
+
+    expect(res.status).toBe(400);
+  });
+
+  it('refuses a camp that does not exist', async () => {
+    const admin = await makeAdmin();
+    const campA = await makeCamp(admin);
+    const official = await makeActiveOfficial(admin, campA);
+
+    const res = await request(app).patch(`/api/auth/officials/${official._id}/camps`)
+      .set(bearer(admin)).send({ camp_ids: [new mongoose.Types.ObjectId().toString()] });
+
+    expect(res.status).toBe(404);
+  });
+
+  it('refuses a non-admin', async () => {
+    const admin = await makeAdmin();
+    const campA = await makeCamp(admin);
+    const campB = await makeCamp(admin);
+    const official = await makeActiveOfficial(admin, campA);
+
+    const res = await request(app).patch(`/api/auth/officials/${official._id}/camps`)
+      .set(bearer(official)).send({ camp_ids: [campB] });
+
+    expect(res.status).toBe(403);
+  });
+
+  it('validates that at least one camp id is given', async () => {
+    const admin = await makeAdmin();
+    const campA = await makeCamp(admin);
+    const official = await makeActiveOfficial(admin, campA);
+
+    const res = await request(app).patch(`/api/auth/officials/${official._id}/camps`)
+      .set(bearer(admin)).send({ camp_ids: [] });
+
+    expect(res.status).toBe(400);
+  });
+
+  it('audits the assignment with the before and after camp lists', async () => {
+    const admin = await makeAdmin();
+    const campA = await makeCamp(admin);
+    const official = await makeActiveOfficial(admin, campA);
+    const campB = await makeCamp(admin);
+
+    await request(app).patch(`/api/auth/officials/${official._id}/camps`)
+      .set(bearer(admin)).send({ camp_ids: [campB] });
+
+    const entry = await AuditLog.findOne({ action: 'user.official_camps_assigned' });
+    expect(entry.actor_id.toString()).toBe(admin._id.toString());
+    expect(entry.before).toEqual({ assigned_camp_ids: [campA] });
+    expect(entry.after.assigned_camp_ids.sort()).toEqual([campA, campB].sort());
+  });
+});
