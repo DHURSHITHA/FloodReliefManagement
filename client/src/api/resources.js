@@ -51,3 +51,11 @@ export function useCreateDistributionRule() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['distribution-rules'] }),
   });
 }
+
+export function useUpdateDistributionRule() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, payload }) => (await api.patch(`/distribution-rules/${id}`, payload)).data.rule,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['distribution-rules'] }),
+  });
+}
