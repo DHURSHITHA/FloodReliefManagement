@@ -63,3 +63,112 @@ describe('donor profile (requirements §6.12)', () => {
     expect(res.status).toBe(403);
   });
 });
+
+import { Notification } from '../notifications/notification.model.js';
+
+const campBody = (over = {}) => ({
+  name: 'Riverside Community Hall', camp_type: 'community_hall',
+  address: '12 River Road', area: 'Ward 12', district: 'North District', state: 'Assam', pincode: '781001',
+  latitude: 26.2, longitude: 91.7, flood_severity: 'high',
+  beneficiary_capacity: 10, volunteer_capacity: 5, duration_days: 14,
+  nearest_hospital_name: 'District Hospital', nearest_hospital_contact: '0484-2000000',
+  nearest_police_name: 'Ward 12 Police Station', nearest_police_contact: '0484-2100000',
+  ...over,
+});
+
+async function makeDonor(over = {}) {
+  const user = await makeUser('donor');
+  await request(app).post('/api/donors/me').set(bearer(user)).send(donorProfileBody(over));
+  return user;
+}
+
+describe('raising a donation (requirements §6.13)', () => {
+  beforeEach(async () => { await clearDatabase(); await syncIndexes(); });
+
+  it('lets a donor record a financial donation and issues a DON- code', async () => {
+    const donor = await makeDonor();
+    const res = await request(app).post('/api/donations').set(bearer(donor)).send({
+      donation_type: 'financial', amount: 5000, payment_method: 'UPI', payment_reference: 'txn_9182',
+    });
+    expect(res.status).toBe(201);
+    expect(res.body.donation.donation_code).toMatch(/^DON-\d+$/);
+    expect(res.body.donation.status).toBe('pending');
+    expect(res.body.donation.amount).toBe(5000);
+  });
+
+  it('lets a donor record a material donation and copies the item label from the catalogue', async () => {
+    const admin = await makeUser('admin');
+    const itemRes = await request(app).post('/api/resources').set(bearer(admin)).send({ name: 'Rice', category: 'food', unit: 'kg' });
+    const donor = await makeDonor();
+
+    const res = await request(app).post('/api/donations').set(bearer(donor)).send({
+      donation_type: 'material',
+      materials: [{ resource_item_id: itemRes.body.item.id, quantity: 100, unit: 'kg' }],
+    });
+
+    expect(res.status).toBe(201);
+    expect(res.body.donation.materials).toHaveLength(1);
+    expect(res.body.donation.materials[0].item_label).toBe('Rice');
+    expect(res.body.donation.materials[0].category).toBe('food');
+  });
+
+  it('refuses a donation from a donor with no profile yet', async () => {
+    const donor = await makeUser('donor');
+    const res = await request(app).post('/api/donations').set(bearer(donor)).send({
+      donation_type: 'financial', amount: 1000, payment_method: 'cash',
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it('lets an admin record a donation on an existing donor\'s behalf', async () => {
+    const donor = await makeDonor();
+    const donorRes = await request(app).get('/api/donors/me').set(bearer(donor));
+    const admin = await makeUser('admin');
+
+    const res = await request(app).post('/api/donations').set(bearer(admin)).send({
+      donation_type: 'financial', donor_id: donorRes.body.donor.id, amount: 2000, payment_method: 'cheque',
+    });
+
+    expect(res.status).toBe(201);
+    expect(res.body.donation.donor_id).toBe(donorRes.body.donor.id);
+    expect(res.body.donation.recorded_by).not.toBe(donorRes.body.donor.user_id);
+  });
+
+  it('rejects an admin recording a donation with no donor_id', async () => {
+    const admin = await makeUser('admin');
+    const res = await request(app).post('/api/donations').set(bearer(admin)).send({
+      donation_type: 'financial', amount: 2000, payment_method: 'cheque',
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it('rejects a material donation naming an item that does not exist', async () => {
+    const donor = await makeDonor();
+    const res = await request(app).post('/api/donations').set(bearer(donor)).send({
+      donation_type: 'material',
+      materials: [{ resource_item_id: '64b64b64b64b64b64b64b64b', quantity: 10, unit: 'kg' }],
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it('notifies every admin when a donation is recorded', async () => {
+    const adminA = await makeUser('admin');
+    const adminB = await makeUser('admin');
+    const donor = await makeDonor();
+
+    await request(app).post('/api/donations').set(bearer(donor)).send({
+      donation_type: 'financial', amount: 1000, payment_method: 'cash',
+    });
+
+    expect(await Notification.countDocuments({ user_id: adminA._id, type: 'donation' })).toBe(1);
+    expect(await Notification.countDocuments({ user_id: adminB._id, type: 'donation' })).toBe(1);
+  });
+
+  it('refuses a camp official', async () => {
+    const official = await makeUser('camp_official');
+    const res = await request(app).post('/api/donations').set(bearer(official)).send({
+      donation_type: 'financial', amount: 1000, payment_method: 'cash',
+    });
+    expect(res.status).toBe(403);
+  });
+});
