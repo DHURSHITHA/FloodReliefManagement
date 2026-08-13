@@ -63,3 +63,60 @@ describe('DonorProfilePage', () => {
     expect(await screen.findByText(/profile saved/i)).toBeInTheDocument();
   });
 });
+
+import { DonationEntryPage } from './DonationEntryPage.jsx';
+
+const CAMPS = [{ id: 'c1', name: 'Riverside Hall' }];
+const ITEMS = [{ id: 'i1', name: 'Rice', category: 'food', unit: 'kg' }];
+const DONOR = { donor_type: 'individual', name: 'Meera Iyer', mobile: '9876543210', address: 'Addr', contact_person: '', email: '', registration_details: '' };
+
+function mockEntryGet({ donor = DONOR, camps = CAMPS, items = ITEMS, mine = [] } = {}) {
+  api.get.mockImplementation((url) => {
+    if (url === '/donors/me') return Promise.resolve({ data: { donor } });
+    if (url === '/camps') return Promise.resolve({ data: { camps } });
+    if (url === '/resources') return Promise.resolve({ data: { items } });
+    if (url === '/donations/mine') return Promise.resolve({ data: { donations: mine } });
+    return Promise.resolve({ data: {} });
+  });
+}
+
+describe('DonationEntryPage', () => {
+  beforeEach(() => { vi.clearAllMocks(); });
+
+  it('prompts for a profile first when none exists', async () => {
+    mockEntryGet({ donor: null });
+    renderPage(<DonationEntryPage />);
+    expect(await screen.findByText(/create your donor profile/i)).toBeInTheDocument();
+  });
+
+  it('records a financial donation and confirms with the code', async () => {
+    mockEntryGet();
+    api.post.mockResolvedValue({ data: { donation: { donation_code: 'DON-1007' } } });
+    const user = userEvent.setup();
+    renderPage(<DonationEntryPage />);
+
+    await user.type(await screen.findByLabelText(/amount/i), '5000');
+    await user.type(screen.getByLabelText(/how was this paid/i), 'UPI');
+    await user.click(screen.getByRole('button', { name: /record donation/i }));
+
+    expect(await screen.findByText(/DON-1007/)).toBeInTheDocument();
+  });
+
+  it('switches to material fields and lets an item be added', async () => {
+    mockEntryGet();
+    const user = userEvent.setup();
+    renderPage(<DonationEntryPage />);
+
+    await user.click(await screen.findByRole('combobox', { name: /^type$/i }));
+    await user.click(await screen.findByRole('option', { name: /material/i }));
+
+    expect(await screen.findByRole('combobox', { name: /item/i })).toBeInTheDocument();
+    expect(screen.queryByLabelText(/^amount$/i)).not.toBeInTheDocument();
+  });
+
+  it('shows the donor their own donation history', async () => {
+    mockEntryGet({ mine: [{ id: 'd1', donation_code: 'DON-1001', donation_type: 'financial', amount: 1000, status: 'confirmed', materials: [], createdAt: '2026-08-13T00:00:00.000Z' }] });
+    renderPage(<DonationEntryPage />);
+    expect(await screen.findByText('DON-1001')).toBeInTheDocument();
+  });
+});
