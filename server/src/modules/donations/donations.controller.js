@@ -26,3 +26,10 @@ export async function raiseDonationHandler(req, res) {
   });
   res.status(201).json({ donation: toDonationJSON(result) });
 }
+
+export async function decideDonationHandler(req, res) {
+  const donation = await donationsService.decideDonation(req.params.id, req.body, {
+    actorId: req.user.id, actorRole: req.user.role, ip: req.ip,
+  });
+  res.json({ donation: donation.toSafeJSON() });
+}

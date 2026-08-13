@@ -65,6 +65,7 @@ describe('donor profile (requirements §6.12)', () => {
 });
 
 import { Notification } from '../notifications/notification.model.js';
+import { Inventory } from '../resources/inventory.model.js';
 
 const campBody = (over = {}) => ({
   name: 'Riverside Community Hall', camp_type: 'community_hall',
@@ -169,6 +170,171 @@ describe('raising a donation (requirements §6.13)', () => {
     const res = await request(app).post('/api/donations').set(bearer(official)).send({
       donation_type: 'financial', amount: 1000, payment_method: 'cash',
     });
+    expect(res.status).toBe(403);
+  });
+});
+
+describe('deciding a donation (requirements §4.1, §4.2 of the M2 design)', () => {
+  beforeEach(async () => { await clearDatabase(); await syncIndexes(); });
+
+  it('confirms a financial donation with no stock side effects', async () => {
+    const admin = await makeUser('admin');
+    const donor = await makeDonor();
+    const created = await request(app).post('/api/donations').set(bearer(donor)).send({
+      donation_type: 'financial', amount: 5000, payment_method: 'UPI',
+    });
+
+    const res = await request(app)
+      .patch(`/api/donations/${created.body.donation.id}/confirm`)
+      .set(bearer(admin))
+      .send({ action: 'confirm' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.donation.status).toBe('confirmed');
+    expect(res.body.donation.confirmed_by).toBe(admin._id.toString());
+    expect(res.body.donation.confirmed_at).not.toBeNull();
+  });
+
+  it('rejects a material donation confirmation with no target camp', async () => {
+    const admin = await makeUser('admin');
+    const itemRes = await request(app).post('/api/resources').set(bearer(admin)).send({ name: 'Rice', category: 'food', unit: 'kg' });
+    const donor = await makeDonor();
+    const created = await request(app).post('/api/donations').set(bearer(donor)).send({
+      donation_type: 'material', materials: [{ resource_item_id: itemRes.body.item.id, quantity: 100, unit: 'kg' }],
+    });
+
+    const res = await request(app)
+      .patch(`/api/donations/${created.body.donation.id}/confirm`)
+      .set(bearer(admin))
+      .send({ action: 'confirm' });
+
+    expect(res.status).toBe(400);
+  });
+
+  it('posts stock for every line of a confirmed material donation, into the target camp only', async () => {
+    const admin = await makeUser('admin');
+    const campRes = await request(app).post('/api/camps').set(bearer(admin)).send(campBody());
+    const otherCampRes = await request(app).post('/api/camps').set(bearer(admin)).send(campBody({ name: 'Hilltop School' }));
+    const itemRes = await request(app).post('/api/resources').set(bearer(admin)).send({ name: 'Rice', category: 'food', unit: 'kg' });
+    const donor = await makeDonor();
+    const created = await request(app).post('/api/donations').set(bearer(donor)).send({
+      donation_type: 'material', target_camp_id: campRes.body.camp.id,
+      materials: [{ resource_item_id: itemRes.body.item.id, quantity: 100, unit: 'kg' }],
+    });
+
+    const res = await request(app)
+      .patch(`/api/donations/${created.body.donation.id}/confirm`)
+      .set(bearer(admin))
+      .send({ action: 'confirm' });
+
+    expect(res.status).toBe(200);
+    const inv = await Inventory.findOne({ camp_id: campRes.body.camp.id, item_id: itemRes.body.item.id });
+    expect(inv.remaining_qty).toBe(100);
+    expect(await Inventory.countDocuments({ camp_id: otherCampRes.body.camp.id })).toBe(0);
+  });
+
+  // Task 3's receiveStock deviation (docs/superpowers/plans/2026-08-13-m2-plan2-donors-and-donations.md)
+  // scopes the "one lot per camp/item" merge to source: 'donation' lots only,
+  // so a manually-created batch (POST /api/inventory, source: 'manual') stays
+  // a separate document by design -- this test seeds the existing lot via a
+  // prior donation confirmation instead, which is what actually exercises
+  // receiveStock's merge path.
+  it('adds donated stock to an existing donation-sourced lot rather than creating a second one', async () => {
+    const admin = await makeUser('admin');
+    const campRes = await request(app).post('/api/camps').set(bearer(admin)).send(campBody());
+    const itemRes = await request(app).post('/api/resources').set(bearer(admin)).send({ name: 'Rice', category: 'food', unit: 'kg' });
+    const donor = await makeDonor();
+
+    const first = await request(app).post('/api/donations').set(bearer(donor)).send({
+      donation_type: 'material', target_camp_id: campRes.body.camp.id,
+      materials: [{ resource_item_id: itemRes.body.item.id, quantity: 40, unit: 'kg' }],
+    });
+    await request(app).patch(`/api/donations/${first.body.donation.id}/confirm`).set(bearer(admin)).send({ action: 'confirm' });
+
+    const second = await request(app).post('/api/donations').set(bearer(donor)).send({
+      donation_type: 'material', target_camp_id: campRes.body.camp.id,
+      materials: [{ resource_item_id: itemRes.body.item.id, quantity: 100, unit: 'kg' }],
+    });
+    await request(app).patch(`/api/donations/${second.body.donation.id}/confirm`).set(bearer(admin)).send({ action: 'confirm' });
+
+    expect(await Inventory.countDocuments({ camp_id: campRes.body.camp.id, item_id: itemRes.body.item.id })).toBe(1);
+    const inv = await Inventory.findOne({ camp_id: campRes.body.camp.id, item_id: itemRes.body.item.id });
+    expect(inv.remaining_qty).toBe(140);
+  });
+
+  it('rejects with a reason and never touches stock', async () => {
+    const admin = await makeUser('admin');
+    const campRes = await request(app).post('/api/camps').set(bearer(admin)).send(campBody());
+    const itemRes = await request(app).post('/api/resources').set(bearer(admin)).send({ name: 'Rice', category: 'food', unit: 'kg' });
+    const donor = await makeDonor();
+    const created = await request(app).post('/api/donations').set(bearer(donor)).send({
+      donation_type: 'material', target_camp_id: campRes.body.camp.id,
+      materials: [{ resource_item_id: itemRes.body.item.id, quantity: 100, unit: 'kg' }],
+    });
+
+    const res = await request(app)
+      .patch(`/api/donations/${created.body.donation.id}/confirm`)
+      .set(bearer(admin))
+      .send({ action: 'reject', rejection_reason: 'Item mismatch with what was actually delivered.' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.donation.status).toBe('rejected');
+    expect(await Inventory.countDocuments({ camp_id: campRes.body.camp.id })).toBe(0);
+  });
+
+  it('rejects a reject with no reason', async () => {
+    const admin = await makeUser('admin');
+    const donor = await makeDonor();
+    const created = await request(app).post('/api/donations').set(bearer(donor)).send({
+      donation_type: 'financial', amount: 1000, payment_method: 'cash',
+    });
+
+    const res = await request(app)
+      .patch(`/api/donations/${created.body.donation.id}/confirm`)
+      .set(bearer(admin))
+      .send({ action: 'reject' });
+    expect(res.status).toBe(400);
+  });
+
+  it('refuses to decide an already-decided donation twice', async () => {
+    const admin = await makeUser('admin');
+    const donor = await makeDonor();
+    const created = await request(app).post('/api/donations').set(bearer(donor)).send({
+      donation_type: 'financial', amount: 1000, payment_method: 'cash',
+    });
+    await request(app).patch(`/api/donations/${created.body.donation.id}/confirm`).set(bearer(admin)).send({ action: 'confirm' });
+
+    const res = await request(app)
+      .patch(`/api/donations/${created.body.donation.id}/confirm`)
+      .set(bearer(admin))
+      .send({ action: 'confirm' });
+    expect(res.status).toBe(409);
+  });
+
+  it('notifies the donor of the decision', async () => {
+    const admin = await makeUser('admin');
+    const donor = await makeDonor();
+    const created = await request(app).post('/api/donations').set(bearer(donor)).send({
+      donation_type: 'financial', amount: 1000, payment_method: 'cash',
+    });
+
+    await request(app).patch(`/api/donations/${created.body.donation.id}/confirm`).set(bearer(admin)).send({ action: 'confirm' });
+
+    expect(await Notification.countDocuments({ user_id: donor._id, type: 'donation_update' })).toBe(1);
+  });
+
+  it('refuses a camp official', async () => {
+    const admin = await makeUser('admin');
+    const official = await makeUser('camp_official');
+    const donor = await makeDonor();
+    const created = await request(app).post('/api/donations').set(bearer(donor)).send({
+      donation_type: 'financial', amount: 1000, payment_method: 'cash',
+    });
+
+    const res = await request(app)
+      .patch(`/api/donations/${created.body.donation.id}/confirm`)
+      .set(bearer(official))
+      .send({ action: 'confirm' });
     expect(res.status).toBe(403);
   });
 });

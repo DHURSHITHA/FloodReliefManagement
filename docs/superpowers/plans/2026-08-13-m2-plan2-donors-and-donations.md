@@ -1383,20 +1383,29 @@ describe('deciding a donation (requirements §4.1, §4.2 of the M2 design)', () 
     expect(await Inventory.countDocuments({ camp_id: otherCampRes.body.camp.id })).toBe(0);
   });
 
-  it('adds donated stock to an existing lot rather than creating a second one', async () => {
+  // Task 3's receiveStock deviation (see that task's notes above) scopes the
+  // "one lot per camp/item" merge to source: 'donation' lots only, so a
+  // manually-created batch (POST /api/inventory, source: 'manual') stays a
+  // separate document by design -- this test seeds the existing lot via a
+  // prior donation confirmation instead, which is what actually exercises
+  // receiveStock's merge path.
+  it('adds donated stock to an existing donation-sourced lot rather than creating a second one', async () => {
     const admin = await makeUser('admin');
     const campRes = await request(app).post('/api/camps').set(bearer(admin)).send(campBody());
     const itemRes = await request(app).post('/api/resources').set(bearer(admin)).send({ name: 'Rice', category: 'food', unit: 'kg' });
-    await request(app).post('/api/inventory').set(bearer(admin)).send({
-      camp_id: campRes.body.camp.id, item_id: itemRes.body.item.id, remaining_qty: 40, reorder_threshold: 50,
-    });
     const donor = await makeDonor();
-    const created = await request(app).post('/api/donations').set(bearer(donor)).send({
+
+    const first = await request(app).post('/api/donations').set(bearer(donor)).send({
+      donation_type: 'material', target_camp_id: campRes.body.camp.id,
+      materials: [{ resource_item_id: itemRes.body.item.id, quantity: 40, unit: 'kg' }],
+    });
+    await request(app).patch(`/api/donations/${first.body.donation.id}/confirm`).set(bearer(admin)).send({ action: 'confirm' });
+
+    const second = await request(app).post('/api/donations').set(bearer(donor)).send({
       donation_type: 'material', target_camp_id: campRes.body.camp.id,
       materials: [{ resource_item_id: itemRes.body.item.id, quantity: 100, unit: 'kg' }],
     });
-
-    await request(app).patch(`/api/donations/${created.body.donation.id}/confirm`).set(bearer(admin)).send({ action: 'confirm' });
+    await request(app).patch(`/api/donations/${second.body.donation.id}/confirm`).set(bearer(admin)).send({ action: 'confirm' });
 
     expect(await Inventory.countDocuments({ camp_id: campRes.body.camp.id, item_id: itemRes.body.item.id })).toBe(1);
     const inv = await Inventory.findOne({ camp_id: campRes.body.camp.id, item_id: itemRes.body.item.id });

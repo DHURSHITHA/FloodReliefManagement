@@ -9,6 +9,9 @@ import { nextDonationCode } from '../../core/idGenerator.js';
 import { recordAudit } from '../audit/audit.service.js';
 import { createNotification } from '../notifications/notifications.service.js';
 import { getCampById } from '../camps/camps.service.js';
+import { receiveStock, announceLowStock } from '../resources/resources.service.js';
+import { emitInventoryChanged } from '../../core/socket.js';
+import { isLowStock } from '@frp/shared';
 
 /** Create or update the caller's own donor profile — one profile per account. */
 export async function upsertMyDonorProfile(input, { actorId }) {
@@ -101,4 +104,100 @@ async function notifyAdminsOfNewDonation(donation, donor) {
   const label = donation.donation_type === 'financial' ? `₹${donation.amount}` : 'a material donation';
   const message = `${donation.donation_code}: ${donor.name} recorded ${label}, awaiting confirmation.`;
   await Promise.all(admins.map((a) => createNotification({ user_id: a._id, type: 'donation', ref_id: donation._id, message })));
+}
+
+async function loadPendingDonation(donationId, session) {
+  const donation = session ? await Donation.findById(donationId).session(session) : await Donation.findById(donationId);
+  if (!donation) throw AppError.notFound('No donation with that id.');
+  if (donation.status !== 'pending') {
+    throw AppError.conflict('ALREADY_DECIDED', 'This donation has already been decided.');
+  }
+  return donation;
+}
+
+async function notifyDonorOfDecision(donation) {
+  const donor = await Donor.findById(donation.donor_id);
+  if (!donor) return;
+  const message = donation.status === 'confirmed'
+    ? `${donation.donation_code} has been confirmed. Thank you.`
+    : `${donation.donation_code} was not accepted: ${donation.rejection_reason}`;
+  await createNotification({ user_id: donor.user_id, type: 'donation_update', ref_id: donation._id, message });
+}
+
+async function rejectDonation(donationId, rejection_reason, { actorId, actorRole, ip }) {
+  const donation = await loadPendingDonation(donationId);
+  const before = { status: donation.status };
+  donation.status = 'rejected';
+  donation.rejection_reason = rejection_reason;
+  donation.confirmed_by = actorId;
+  donation.confirmed_at = new Date();
+  await donation.save();
+
+  await recordAudit({
+    actor_id: actorId, actor_role: actorRole, action: 'donation.reject',
+    module: 'donations', record_id: donation._id, before, after: { status: 'rejected', rejection_reason }, ip,
+  });
+  await notifyDonorOfDecision(donation);
+  return donation;
+}
+
+/**
+ * Confirmation, spec section 4.1-4.2 of the M2 design: a material donation
+ * with no target camp is refused (stock has to land somewhere). Stock
+ * posting happens for every line inside the same transaction as the status
+ * change, sequentially -- a session must not run concurrent operations.
+ * Low-stock announcements and socket emits fire only after commit, the
+ * same discipline distribution.service.js applies to a rolled-back attempt.
+ */
+async function confirmDonation(donationId, { actorId, actorRole, ip }) {
+  const { donation, updatedLots } = await withTransaction(async (session) => {
+    const donation = await loadPendingDonation(donationId, session);
+
+    const updatedLots = [];
+    if (donation.donation_type === 'material') {
+      if (!donation.target_camp_id) {
+        throw AppError.badRequest(
+          'A material donation needs a target camp before it can be confirmed.',
+          [{ path: 'target_camp_id', message: 'Choose which camp receives this.' }]
+        );
+      }
+      const lines = await DonationMaterial.find({ donation_id: donation._id }).session(session);
+      for (const line of lines) {
+        const inv = await receiveStock(
+          { camp_id: donation.target_camp_id, item_id: line.resource_item_id, quantity: line.quantity },
+          { actorId, session }
+        );
+        updatedLots.push(inv);
+      }
+    }
+
+    const before = { status: donation.status };
+    donation.status = 'confirmed';
+    donation.confirmed_by = actorId;
+    donation.confirmed_at = new Date();
+    await donation.save({ session });
+
+    await recordAudit({
+      actor_id: actorId, actor_role: actorRole, action: 'donation.confirm',
+      module: 'donations', record_id: donation._id, before, after: { status: 'confirmed' }, ip, session,
+    });
+
+    return { donation, updatedLots };
+  });
+
+  updatedLots.forEach((inv) => {
+    emitInventoryChanged(inv.camp_id, { itemId: String(inv.item_id), remaining_qty: inv.remaining_qty });
+  });
+  for (const inv of updatedLots) {
+    if (isLowStock(inv)) await announceLowStock(inv);
+  }
+
+  await notifyDonorOfDecision(donation);
+  return donation;
+}
+
+export async function decideDonation(donationId, { action, rejection_reason }, { actorId, actorRole, ip }) {
+  return action === 'reject'
+    ? rejectDonation(donationId, rejection_reason, { actorId, actorRole, ip })
+    : confirmDonation(donationId, { actorId, actorRole, ip });
 }
