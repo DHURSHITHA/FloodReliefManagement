@@ -74,3 +74,64 @@ describe('RaiseSosPage', () => {
     expect(screen.getByText('Taken to the medical tent, stable.')).toBeInTheDocument();
   });
 });
+
+import { SosDashboardPage } from './SosDashboardPage.jsx';
+import { CampScopeProvider } from '../../camps/CampScope.jsx';
+
+vi.mock('../../AuthProvider.jsx', () => ({
+  useAuth: () => ({ user: { role: 'camp_official', assigned_camp_ids: ['c1'] } }),
+}));
+vi.mock('../../api/socket.js', async (orig) => {
+  const actual = await orig();
+  return { ...actual, useLiveSosUpdates: vi.fn() };
+});
+
+function renderScoped(ui) {
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+  return render(
+    <QueryClientProvider client={qc}>
+      <CampScopeProvider>{ui}</CampScopeProvider>
+    </QueryClientProvider>,
+  );
+}
+
+describe('SosDashboardPage', () => {
+  beforeEach(() => { vi.clearAllMocks(); localStorage.clear(); });
+
+  it('counts what still needs a response', async () => {
+    api.get.mockImplementation((url) => {
+      if (url === '/camps') return Promise.resolve({ data: { camps: CAMPS } });
+      if (url === '/sos') return Promise.resolve({
+        data: { sos_requests: [OPEN_SOS, { ...OPEN_SOS, id: 's2', status: 'resolved' }] },
+      });
+      return Promise.resolve({ data: {} });
+    });
+    renderScoped(<SosDashboardPage />);
+    expect(await screen.findByText(/1 still need a response/i)).toBeInTheDocument();
+  });
+
+  it('asks what was done before letting one be resolved', async () => {
+    api.get.mockImplementation((url) => {
+      if (url === '/camps') return Promise.resolve({ data: { camps: CAMPS } });
+      if (url === '/sos') return Promise.resolve({ data: { sos_requests: [OPEN_SOS] } });
+      return Promise.resolve({ data: {} });
+    });
+    const user = userEvent.setup();
+    renderScoped(<SosDashboardPage />);
+
+    await user.click(await screen.findByRole('combobox', { name: /^status$/i }));
+    await user.click(await screen.findByRole('option', { name: 'Resolved' }));
+
+    expect(await screen.findByLabelText(/what was done/i)).toBeInTheDocument();
+  });
+
+  it('says so when nothing has been reported', async () => {
+    api.get.mockImplementation((url) => {
+      if (url === '/camps') return Promise.resolve({ data: { camps: CAMPS } });
+      if (url === '/sos') return Promise.resolve({ data: { sos_requests: [] } });
+      return Promise.resolve({ data: {} });
+    });
+    renderScoped(<SosDashboardPage />);
+    expect(await screen.findByText(/nothing has been reported/i)).toBeInTheDocument();
+  });
+});
