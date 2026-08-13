@@ -402,3 +402,49 @@ describe('listing donations', () => {
     expect(res.status).toBe(403);
   });
 });
+
+describe('cross-role leakage', () => {
+  beforeEach(async () => { await clearDatabase(); await syncIndexes(); });
+
+  it('a donor cannot read another donor\'s profile through any donation payload', async () => {
+    const admin = await makeUser('admin');
+    const donorA = await makeDonor({ name: 'Meera Iyer', mobile: '9876543210' });
+    const donorB = await makeDonor({ name: 'Arjun Nair', mobile: '9123456780' });
+    await request(app).post('/api/donations').set(bearer(donorA)).send({ donation_type: 'financial', amount: 1000, payment_method: 'cash' });
+
+    const res = await request(app).get('/api/donations/mine').set(bearer(donorB));
+    expect(res.body.donations).toEqual([]);
+  });
+
+  it('an admin-recorded donation for donor A cannot be listed under donor B\'s account', async () => {
+    const admin = await makeUser('admin');
+    const donorA = await makeDonor();
+    const donorARes = await request(app).get('/api/donors/me').set(bearer(donorA));
+    const donorB = await makeDonor();
+
+    await request(app).post('/api/donations').set(bearer(admin)).send({
+      donation_type: 'financial', donor_id: donorARes.body.donor.id, amount: 3000, payment_method: 'cheque',
+    });
+
+    const res = await request(app).get('/api/donations/mine').set(bearer(donorB));
+    expect(res.body.donations).toEqual([]);
+  });
+
+  it('a donor cannot decide their own donation', async () => {
+    const donor = await makeDonor();
+    const created = await request(app).post('/api/donations').set(bearer(donor)).send({ donation_type: 'financial', amount: 1000, payment_method: 'cash' });
+
+    const res = await request(app)
+      .patch(`/api/donations/${created.body.donation.id}/confirm`)
+      .set(bearer(donor))
+      .send({ action: 'confirm' });
+    expect(res.status).toBe(403);
+  });
+
+  it('an affected person cannot reach any donation route', async () => {
+    const person = await makeUser('affected_person');
+    expect((await request(app).post('/api/donations').set(bearer(person)).send({ donation_type: 'financial', amount: 1, payment_method: 'cash' })).status).toBe(403);
+    expect((await request(app).get('/api/donations/mine').set(bearer(person))).status).toBe(403);
+    expect((await request(app).get('/api/donations').set(bearer(person))).status).toBe(403);
+  });
+});
