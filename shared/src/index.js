@@ -12,3 +12,5 @@ export * from './priorityOrder.js';
 export * from './schemas/complaint.schema.js';
 export * from './schemas/sos.schema.js';
 export * from './sosOrder.js';
+export * from './schemas/donor.schema.js';
+export * from './schemas/donation.schema.js';
