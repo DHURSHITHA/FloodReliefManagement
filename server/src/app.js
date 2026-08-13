@@ -14,6 +14,7 @@ import { distributionRouter } from './modules/distribution/distribution.routes.j
 import { dashboardRouter } from './modules/dashboard/dashboard.routes.js';
 import { complaintsRouter } from './modules/complaints/complaints.routes.js';
 import { sosRouter } from './modules/sos/sos.routes.js';
+import { donationsRouter } from './modules/donations/donations.routes.js';
 
 export function createApp() {
   const app = express();
@@ -38,6 +39,7 @@ export function createApp() {
   app.use('/api', dashboardRouter);
   app.use('/api', complaintsRouter);
   app.use('/api', sosRouter);
+  app.use('/api', donationsRouter);
 
   app.use(notFoundHandler);
   app.use(errorHandler);
