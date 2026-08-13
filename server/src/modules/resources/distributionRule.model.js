@@ -25,6 +25,16 @@ const distributionRuleSchema = new mongoose.Schema(
   { timestamps: true, collection: 'distribution_rules' }
 );
 
+// At most one *active* rule per camp+item — including camp_id: null, so
+// this covers both tiers at once: one active global default per item, and
+// separately one active camp-specific override per camp+item. Deactivated
+// (active: false) history is unconstrained, the same partial-unique-index
+// shape inventory.model.js already established for donation-sourced lots.
+distributionRuleSchema.index(
+  { camp_id: 1, item_id: 1, active: 1 },
+  { unique: true, partialFilterExpression: { active: true } }
+);
+
 distributionRuleSchema.methods.toSafeJSON = function toSafeJSON() {
   return {
     id: this._id.toString(), item_id: this.item_id.toString(),

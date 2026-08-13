@@ -33,6 +33,15 @@ export const createDistributionRuleSchema = z.object({
   active: z.boolean().default(true),
 });
 
+/**
+ * Editing a rule already in place — every field optional, the same
+ * `createSchema.partial()` convention every other module's update schema
+ * follows (updateCampSchema, updateComplaintSchema). Including camp_id and
+ * item_id lets an admin re-target a rule, not just adjust its terms; the
+ * server still enforces at most one active rule per camp+item either way.
+ */
+export const updateDistributionRuleSchema = createDistributionRuleSchema.partial();
+
 export const distributeItemSchema = z.object({
   beneficiary_id: objectId,
   item_id: objectId,

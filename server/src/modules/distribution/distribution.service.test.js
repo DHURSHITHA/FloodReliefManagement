@@ -96,6 +96,16 @@ describe('distributeItem', () => {
     expect(record.override_reason).toBeTruthy();
   });
 
+  it('prefers a camp-specific rule over the global default for that item', async () => {
+    const { item, beneficiary, campId } = await setup({ ruleOver: { fixed_qty: 5 } }); // global default, 5/head
+    await DistributionRule.create({
+      item_id: item._id, camp_id: campId, mode: 'fixed', period: 'daily', fixed_qty: 9, active: true,
+      created_by: new mongoose.Types.ObjectId(),
+    });
+    const record = await distributionService.distributeItem({ beneficiary_id: beneficiary._id, item_id: item._id }, actor());
+    expect(record.quantity).toBe(9);
+  });
+
   it('refuses when no member satisfies the rule eligibility', async () => {
     const { item, beneficiary } = await setup({ ruleOver: { eligibility: ['has_child'] } });
     await expect(
