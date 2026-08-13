@@ -10,13 +10,18 @@ const ROLE_LABEL = {
   donor: 'Donor',
 };
 
-// Only roles with more than one destination get a nav bar — a donor still has
-// a single screen, so links would be noise there.
+// Every role listed here gets a nav bar; a role with a genuinely single
+// screen would be omitted, but none currently is.
 const NAV_BY_ROLE = {
   affected_person: [
     { to: '/', label: 'Camps', end: true },
     { to: '/queries', label: 'My queries' },
     { to: '/sos', label: 'Report emergency' },
+  ],
+  donor: [
+    { to: '/donor', label: 'Camps', end: true },
+    { to: '/donor/profile', label: 'My profile' },
+    { to: '/donor/donate', label: 'Donate' },
   ],
   admin: [
     { to: '/admin', label: 'Dashboard', end: true },
@@ -29,6 +34,7 @@ const NAV_BY_ROLE = {
     { to: '/official/distribute', label: 'Distribute' },
     { to: '/official/queries', label: 'Queries' },
     { to: '/official/sos', label: 'Emergency' },
+    { to: '/admin/donations', label: 'Donations' },
   ],
   camp_official: [
     { to: '/official', label: 'Home', end: true },

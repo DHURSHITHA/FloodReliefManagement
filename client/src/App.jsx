@@ -27,6 +27,9 @@ import { RaiseComplaintPage } from './features/complaints/RaiseComplaintPage.jsx
 import { ComplaintsQueuePage } from './features/complaints/ComplaintsQueuePage.jsx';
 import { RaiseSosPage } from './features/sos/RaiseSosPage.jsx';
 import { SosDashboardPage } from './features/sos/SosDashboardPage.jsx';
+import { DonorProfilePage } from './features/donations/DonorProfilePage.jsx';
+import { DonationEntryPage } from './features/donations/DonationEntryPage.jsx';
+import { DonationReviewPage } from './features/donations/DonationReviewPage.jsx';
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: false } },
@@ -62,6 +65,13 @@ export default function App() {
                 </Route>
               </Route>
 
+              <Route element={<RequireAuth roles={['donor']} />}>
+                <Route element={<RoleLayout />}>
+                  <Route path="/donor/profile" element={<DonorProfilePage />} />
+                  <Route path="/donor/donate" element={<DonationEntryPage />} />
+                </Route>
+              </Route>
+
               <Route element={<RequireAuth roles={['admin']} />}>
                 <Route element={<RoleLayout />}>
                   <Route path="/admin" element={<DashboardPage />} />
@@ -72,6 +82,7 @@ export default function App() {
                   <Route path="/admin/resources" element={<ResourceItemsPage />} />
                   <Route path="/admin/inventory" element={<InventoryPage />} />
                   <Route path="/admin/distribution-rules" element={<DistributionRulesPage />} />
+                  <Route path="/admin/donations" element={<DonationReviewPage />} />
                 </Route>
               </Route>
 

@@ -8,7 +8,7 @@ import { api } from '../../api/client.js';
 
 vi.mock('../../api/client.js', async (orig) => {
   const actual = await orig();
-  return { ...actual, api: { ...actual.api, get: vi.fn(), post: vi.fn() } };
+  return { ...actual, api: { ...actual.api, get: vi.fn(), post: vi.fn(), patch: vi.fn() } };
 });
 
 // Wrapped in MemoryRouter, not just QueryClientProvider: Task 11's
@@ -118,5 +118,49 @@ describe('DonationEntryPage', () => {
     mockEntryGet({ mine: [{ id: 'd1', donation_code: 'DON-1001', donation_type: 'financial', amount: 1000, status: 'confirmed', materials: [], createdAt: '2026-08-13T00:00:00.000Z' }] });
     renderPage(<DonationEntryPage />);
     expect(await screen.findByText('DON-1001')).toBeInTheDocument();
+  });
+});
+
+import { DonationReviewPage } from './DonationReviewPage.jsx';
+
+const PENDING = {
+  id: 'd1', donation_code: 'DON-1001', donation_type: 'financial', amount: 3000,
+  status: 'pending', materials: [], donor_name: 'Meera Iyer', createdAt: '2026-08-13T00:00:00.000Z',
+};
+
+describe('DonationReviewPage', () => {
+  beforeEach(() => { vi.clearAllMocks(); });
+
+  it('lists what needs review', async () => {
+    api.get.mockImplementation((url) => (url === '/donations' ? Promise.resolve({ data: { donations: [PENDING] } }) : Promise.resolve({ data: {} })));
+    renderPage(<DonationReviewPage />);
+    expect(await screen.findByText('DON-1001')).toBeInTheDocument();
+    expect(screen.getByText('Meera Iyer')).toBeInTheDocument();
+  });
+
+  it('confirms with one click', async () => {
+    api.get.mockImplementation((url) => (url === '/donations' ? Promise.resolve({ data: { donations: [PENDING] } }) : Promise.resolve({ data: {} })));
+    api.patch.mockResolvedValue({ data: { donation: { ...PENDING, status: 'confirmed' } } });
+    const user = userEvent.setup();
+    renderPage(<DonationReviewPage />);
+
+    await user.click(await screen.findByRole('button', { name: /confirm/i }));
+
+    await waitFor(() => expect(api.patch).toHaveBeenCalledWith('/donations/d1/confirm', { action: 'confirm' }));
+  });
+
+  it('asks for a reason before rejecting', async () => {
+    api.get.mockImplementation((url) => (url === '/donations' ? Promise.resolve({ data: { donations: [PENDING] } }) : Promise.resolve({ data: {} })));
+    const user = userEvent.setup();
+    renderPage(<DonationReviewPage />);
+
+    await user.click(await screen.findByRole('button', { name: /^reject$/i }));
+    expect(await screen.findByLabelText(/reason/i)).toBeInTheDocument();
+  });
+
+  it('says so when nothing is pending', async () => {
+    api.get.mockImplementation((url) => (url === '/donations' ? Promise.resolve({ data: { donations: [] } }) : Promise.resolve({ data: {} })));
+    renderPage(<DonationReviewPage />);
+    expect(await screen.findByText(/nothing (is )?waiting/i)).toBeInTheDocument();
   });
 });
