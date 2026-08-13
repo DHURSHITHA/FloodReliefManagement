@@ -85,3 +85,48 @@ export async function adjustInventory(id, input, { actorId, actorRole, ip }) {
   if (isLowStock(inv)) await announceLowStock(inv);
   return inv;
 }
+
+/**
+ * Post a stock increase for camp_id/item_id, creating the lot if this is
+ * the first stock this camp has ever held for that item. The only caller
+ * outside this module is a confirmed material donation (spec §4.2) — donors
+ * reach Inventory only through this function, never the model.
+ *
+ * A donation-created lot starts with reorder_threshold 0 (no low-stock
+ * alert) until an admin sets a real one via the existing adjust endpoint —
+ * a donation has no basis to guess what "low" means for this camp.
+ *
+ * Marked source:'donation' and matched/inserted against that field
+ * specifically: a plain {camp_id, item_id} upsert is not race-safe under
+ * concurrent first-time receipt (two calls can both see "no lot yet" and
+ * both insert). The partial unique index on inventory.model.js enforces at
+ * most one source:'donation' lot per camp/item; a concurrent loser gets a
+ * duplicate-key error here and retries, folding its receipt into the
+ * winner's lot instead of creating a second one. Manually-created batches
+ * are untouched by this — they default to source:'manual' and the index
+ * does not apply to them.
+ *
+ * No side effects here on purpose: this is called from inside another
+ * module's transaction, and a socket emit or notification must never fire
+ * from work that might still be rolled back. The caller announces
+ * low-stock and broadcasts the change after its own transaction commits.
+ */
+export async function receiveStock({ camp_id, item_id, quantity, expiry_date = null }, { actorId, session } = {}) {
+  try {
+    return await Inventory.findOneAndUpdate(
+      { camp_id, item_id, source: 'donation' },
+      {
+        $inc: { remaining_qty: quantity },
+        $setOnInsert: {
+          camp_id, item_id, source: 'donation', distributed_qty: 0, reorder_threshold: 0, expiry_date, created_by: actorId,
+        },
+      },
+      { new: true, upsert: true, session }
+    );
+  } catch (err) {
+    if (err?.code === 11000) {
+      return receiveStock({ camp_id, item_id, quantity, expiry_date }, { actorId, session });
+    }
+    throw err;
+  }
+}
