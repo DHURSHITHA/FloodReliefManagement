@@ -10,3 +10,5 @@ export * from './distribution.js';
 export * from './schemas/distributionRule.schema.js';
 export * from './priorityOrder.js';
 export * from './schemas/complaint.schema.js';
+export * from './schemas/sos.schema.js';
+export * from './sosOrder.js';
