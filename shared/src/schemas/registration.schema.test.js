@@ -56,6 +56,45 @@ describe('createRegistrationSchema', () => {
     const result = createRegistrationSchema.safeParse({ camp_id: campId, members: [] });
     expect(result.success).toBe(false);
   });
+
+  it('refuses a volunteer under 18', () => {
+    const result = createRegistrationSchema.safeParse({
+      camp_id: campId,
+      members: [applicant(), familyMember({ age: 17, wants_to_volunteer: true })],
+    });
+    expect(result.success).toBe(false);
+    expect(result.error.issues.map((i) => i.path.join('.'))).toContain('members.1.wants_to_volunteer');
+  });
+
+  it('accepts a volunteer who is 18', () => {
+    const result = createRegistrationSchema.safeParse({
+      camp_id: campId,
+      members: [applicant(), familyMember({ age: 18, wants_to_volunteer: true })],
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('does not require age 18+ for a member who is not volunteering', () => {
+    const result = createRegistrationSchema.safeParse({
+      camp_id: campId, members: [applicant(), familyMember({ age: 8, wants_to_volunteer: false })],
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('refuses a male member marked pregnant', () => {
+    const result = createRegistrationSchema.safeParse({
+      camp_id: campId, members: [applicant({ gender: 'male', is_pregnant: true })],
+    });
+    expect(result.success).toBe(false);
+    expect(result.error.issues.map((i) => i.path.join('.'))).toContain('members.0.is_pregnant');
+  });
+
+  it('accepts a female member marked pregnant', () => {
+    const result = createRegistrationSchema.safeParse({
+      camp_id: campId, members: [applicant({ gender: 'female', is_pregnant: true })],
+    });
+    expect(result.success).toBe(true);
+  });
 });
 
 describe('searchRegistrationsQuerySchema', () => {

@@ -68,6 +68,37 @@ describe('RegistrationWizard', () => {
     expect(api.post).not.toHaveBeenCalled();
   }, 20000);
 
+  it('refuses to submit a male applicant marked pregnant, and shows why', async () => {
+    renderPage();
+    await fillApplicant();
+    await userEvent.click(screen.getByLabelText(/gender/i));
+    await userEvent.click(await screen.findByRole('option', { name: /^male$/i }));
+    await userEvent.click(screen.getByLabelText(/^pregnant$/i));
+
+    await userEvent.click(screen.getByRole('button', { name: /submit registration/i }));
+    expect(await screen.findByText(/pregnancy cannot be marked for a male member/i)).toBeInTheDocument();
+    expect(api.post).not.toHaveBeenCalled();
+  }, 20000);
+
+  it('refuses to submit a family member under 18 who wants to volunteer, and shows why', async () => {
+    renderPage();
+    await fillApplicant();
+    await userEvent.click(screen.getByRole('button', { name: /add family member/i }));
+
+    const memberNames = screen.getAllByLabelText(/full name/i);
+    await userEvent.type(memberNames[1], 'Raju Devi');
+    await userEvent.type(screen.getAllByLabelText(/age/i)[1], '15');
+    await userEvent.click(screen.getAllByLabelText(/gender/i)[1]);
+    await userEvent.click(await screen.findByRole('option', { name: /^male$/i }));
+    await userEvent.type(screen.getAllByLabelText(/aadhaar number/i)[1], '234567890111');
+    await userEvent.type(screen.getAllByLabelText(/relation to applicant/i)[0], 'child');
+    await userEvent.click(screen.getAllByLabelText(/wants to volunteer/i)[1]);
+
+    await userEvent.click(screen.getByRole('button', { name: /submit registration/i }));
+    expect(await screen.findByText(/volunteer must be at least 18/i)).toBeInTheDocument();
+    expect(api.post).not.toHaveBeenCalled();
+  }, 20000);
+
   it('flags the exact colliding member on a 409 duplicate response, keeping other fields intact', async () => {
     api.post.mockRejectedValue({
       response: {

@@ -50,6 +50,22 @@ describe('RegistrationMember', () => {
     const m = await RegistrationMember.create(validMember());
     expect(JSON.stringify(m.toSafeJSON())).not.toContain('enc-a');
   });
+
+  it('refuses a volunteer under 18', async () => {
+    await expect(RegistrationMember.create(validMember({ age: 17, wants_to_volunteer: true }))).rejects.toThrow();
+  });
+
+  it('allows a volunteer who is 18', async () => {
+    await expect(RegistrationMember.create(validMember({ age: 18, wants_to_volunteer: true }))).resolves.toBeTruthy();
+  });
+
+  it('refuses a male member marked pregnant', async () => {
+    await expect(RegistrationMember.create(validMember({ gender: 'male', is_pregnant: true }))).rejects.toThrow();
+  });
+
+  it('allows a female member marked pregnant', async () => {
+    await expect(RegistrationMember.create(validMember({ gender: 'female', is_pregnant: true }))).resolves.toBeTruthy();
+  });
 });
 
 describe('Beneficiary', () => {

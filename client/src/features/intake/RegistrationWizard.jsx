@@ -119,9 +119,23 @@ export function RegistrationWizard() {
               <TextField label="Relation to applicant" value={m.relation_to_applicant} onChange={changeMember(i, 'relation_to_applicant')}
                 error={Boolean(fieldErrors[`members.${i}.relation_to_applicant`])} helperText={fieldErrors[`members.${i}.relation_to_applicant`]} />
             )}
-            <FormControlLabel control={<Checkbox checked={m.is_pregnant} onChange={changeMember(i, 'is_pregnant')} />} label="Pregnant" />
+            <Box>
+              <FormControlLabel control={<Checkbox checked={m.is_pregnant} onChange={changeMember(i, 'is_pregnant')} />} label="Pregnant" />
+              {fieldErrors[`members.${i}.is_pregnant`] && (
+                <Typography variant="caption" color="error" sx={{ display: 'block', ml: 4, mt: -0.5 }}>
+                  {fieldErrors[`members.${i}.is_pregnant`]}
+                </Typography>
+              )}
+            </Box>
             <FormControlLabel control={<Checkbox checked={m.has_disability} onChange={changeMember(i, 'has_disability')} />} label="Has a disability" />
-            <FormControlLabel control={<Checkbox checked={m.wants_to_volunteer} onChange={changeMember(i, 'wants_to_volunteer')} />} label="Wants to volunteer" />
+            <Box>
+              <FormControlLabel control={<Checkbox checked={m.wants_to_volunteer} onChange={changeMember(i, 'wants_to_volunteer')} />} label="Wants to volunteer" />
+              {fieldErrors[`members.${i}.wants_to_volunteer`] && (
+                <Typography variant="caption" color="error" sx={{ display: 'block', ml: 4, mt: -0.5 }}>
+                  {fieldErrors[`members.${i}.wants_to_volunteer`]}
+                </Typography>
+              )}
+            </Box>
             {i > 0 && (
               <Box sx={{ mt: 1 }}>
                 <Button size="small" color="error" onClick={() => removeMember(i)}>Remove this person</Button>

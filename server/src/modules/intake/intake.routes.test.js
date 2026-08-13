@@ -92,6 +92,37 @@ describe('POST /api/registrations', () => {
     expect(res.body.error.code).toBe('DUPLICATE_AADHAAR');
     expect(res.body.error.details[0].path).toBe('members.0.aadhaar');
   });
+
+  it('refuses a family member under 18 who wants to volunteer', async () => {
+    const admin = await makeUser('admin');
+    const campId = await createCamp(admin);
+    const person = await makeUser('affected_person');
+
+    const res = await request(app).post('/api/registrations').set(bearer(person)).send(
+      registrationBody(campId, {
+        members: [
+          { name: 'Meena Devi', age: 34, gender: 'female', aadhaar: '234567890202', mobile: '9876543210', address: '12 River Road' },
+          { name: 'Raju', age: 15, gender: 'male', aadhaar: '234567890111', relation_to_applicant: 'child', wants_to_volunteer: true },
+        ],
+      }),
+    );
+    expect(res.status).toBe(400);
+    expect(res.body.error.details.map((d) => d.path)).toContain('members.1.wants_to_volunteer');
+  });
+
+  it('refuses a male member marked pregnant', async () => {
+    const admin = await makeUser('admin');
+    const campId = await createCamp(admin);
+    const person = await makeUser('affected_person');
+
+    const res = await request(app).post('/api/registrations').set(bearer(person)).send(
+      registrationBody(campId, {
+        members: [{ name: 'Rakesh', age: 30, gender: 'male', aadhaar: '234567890202', mobile: '9876543210', address: '12 River Road', is_pregnant: true }],
+      }),
+    );
+    expect(res.status).toBe(400);
+    expect(res.body.error.details.map((d) => d.path)).toContain('members.0.is_pregnant');
+  });
 });
 
 describe('GET /api/registrations/me', () => {

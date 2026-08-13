@@ -51,6 +51,20 @@ registrationMemberSchema.pre('validate', function computePriority() {
   this.priority_level = priority_level;
 });
 
+// Belt-and-suspenders: createRegistrationSchema's superRefine already
+// blocks both of these at the API boundary. Repeated here so the
+// invariant holds even for a write that reaches this model some other
+// way (a script, a future caller) — the same reasoning
+// inventory.model.js's partial unique index applies at the database layer.
+registrationMemberSchema.pre('validate', function enforceMemberInvariants() {
+  if (this.wants_to_volunteer && this.age < 18) {
+    this.invalidate('wants_to_volunteer', 'A volunteer must be at least 18 years old.');
+  }
+  if (this.is_pregnant && this.gender === 'male') {
+    this.invalidate('is_pregnant', 'Pregnancy cannot be marked for a male member.');
+  }
+});
+
 registrationMemberSchema.methods.toSafeJSON = function toSafeJSON() {
   return {
     id: this._id.toString(),

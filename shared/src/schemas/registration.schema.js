@@ -43,6 +43,13 @@ export const createRegistrationSchema = z
       } else if (!m.relation_to_applicant) {
         ctx.addIssue({ code: 'custom', path: ['members', i, 'relation_to_applicant'], message: 'Relation to the applicant is required.' });
       }
+
+      if (m.wants_to_volunteer && m.age < 18) {
+        ctx.addIssue({ code: 'custom', path: ['members', i, 'wants_to_volunteer'], message: 'A volunteer must be at least 18 years old.' });
+      }
+      if (m.is_pregnant && m.gender === 'male') {
+        ctx.addIssue({ code: 'custom', path: ['members', i, 'is_pregnant'], message: 'Pregnancy cannot be marked for a male member.' });
+      }
     });
   });
 
