@@ -1,8 +1,11 @@
 import { describe, it, expect, beforeEach } from 'vitest';
+import request from 'supertest';
 import { raiseSos, listMySos, listSos, transitionSos, getSosDashboardCounts } from './sos.service.js';
 import { createCamp } from '../camps/camps.service.js';
 import { User, hashPassword } from '../auth/user.model.js';
 import { Notification } from '../notifications/notification.model.js';
+import { createApp } from '../../app.js';
+import { signAccessToken } from '../../core/tokens.js';
 import { clearDatabase, syncIndexes } from '../../test/helpers.js';
 
 async function makeUser(role, over = {}) {
@@ -196,5 +199,94 @@ describe('sos.service (requirements §6.11)', () => {
 
     const counts = await getSosDashboardCounts();
     expect(counts).toEqual({ open: 1, medical: 0, security: 1, resolved: 1 });
+  });
+});
+
+const app = createApp();
+const bearer = (u) => ({ Authorization: `Bearer ${signAccessToken(u)}` });
+
+describe('SOS API routes', () => {
+  beforeEach(async () => { await clearDatabase(); await syncIndexes(); });
+
+  it('lets an affected person raise one and issues an SOS- code', async () => {
+    const admin = await makeUser('admin');
+    const campRes = await request(app).post('/api/camps').set(bearer(admin)).send(campInput());
+    const person = await makeUser('affected_person');
+
+    const res = await request(app).post('/api/sos').set(bearer(person)).send({
+      camp_id: campRes.body.camp.id, category: 'medical', urgency: 'critical',
+      description: 'Chest pains, needs help now.', location: 'Tent 4',
+    });
+
+    expect(res.status).toBe(201);
+    expect(res.body.sos.sos_code).toMatch(/^SOS-\d+$/);
+    expect(res.body.sos.routed_to_name).toBe('District Hospital');
+  });
+
+  it('refuses a donor', async () => {
+    const admin = await makeUser('admin');
+    const campRes = await request(app).post('/api/camps').set(bearer(admin)).send(campInput());
+    const donor = await makeUser('donor');
+
+    const res = await request(app).post('/api/sos').set(bearer(donor)).send({
+      camp_id: campRes.body.camp.id, category: 'medical', urgency: 'high',
+      description: 'Chest pains, needs help now.', location: 'Tent 4',
+    });
+    expect(res.status).toBe(403);
+  });
+
+  it('refuses an unauthenticated request', async () => {
+    const res = await request(app).get('/api/sos/mine');
+    expect(res.status).toBe(401);
+  });
+
+  it('lets a camp official narrow by camp and status query params', async () => {
+    const admin = await makeUser('admin');
+    const campRes = await request(app).post('/api/camps').set(bearer(admin)).send(campInput());
+    const official = await makeUser('camp_official', { assigned_camp_ids: [campRes.body.camp.id] });
+    const person = await makeUser('affected_person');
+    await request(app).post('/api/sos').set(bearer(person)).send({
+      camp_id: campRes.body.camp.id, category: 'medical', urgency: 'high',
+      description: 'Chest pains, needs help now.', location: 'Tent 4',
+    });
+
+    const res = await request(app)
+      .get(`/api/sos?camp_id=${campRes.body.camp.id}&status=open`)
+      .set(bearer(official));
+    expect(res.status).toBe(200);
+    expect(res.body.sos_requests).toHaveLength(1);
+  });
+
+  it('rejects a PATCH to resolved with no note', async () => {
+    const admin = await makeUser('admin');
+    const campRes = await request(app).post('/api/camps').set(bearer(admin)).send(campInput());
+    const person = await makeUser('affected_person');
+    const createRes = await request(app).post('/api/sos').set(bearer(person)).send({
+      camp_id: campRes.body.camp.id, category: 'medical', urgency: 'high',
+      description: 'Chest pains, needs help now.', location: 'Tent 4',
+    });
+
+    const res = await request(app)
+      .patch(`/api/sos/${createRes.body.sos.id}`)
+      .set(bearer(admin))
+      .send({ status: 'resolved' });
+    expect(res.status).toBe(400);
+  });
+
+  it('accepts a PATCH to resolved with a note', async () => {
+    const admin = await makeUser('admin');
+    const campRes = await request(app).post('/api/camps').set(bearer(admin)).send(campInput());
+    const person = await makeUser('affected_person');
+    const createRes = await request(app).post('/api/sos').set(bearer(person)).send({
+      camp_id: campRes.body.camp.id, category: 'medical', urgency: 'high',
+      description: 'Chest pains, needs help now.', location: 'Tent 4',
+    });
+
+    const res = await request(app)
+      .patch(`/api/sos/${createRes.body.sos.id}`)
+      .set(bearer(admin))
+      .send({ status: 'resolved', note: 'Taken to the medical tent, stable.' });
+    expect(res.status).toBe(200);
+    expect(res.body.sos.status).toBe('resolved');
   });
 });
