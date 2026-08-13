@@ -466,6 +466,7 @@ git commit -m "feat(server): add nextDonationCode"
 
 **Files:**
 - Modify: `server/src/modules/resources/resources.service.js`
+- Modify: `server/src/modules/resources/inventory.model.js`
 - Create: `server/src/modules/resources/resources.service.test.js`
 
 **Interfaces:**
@@ -479,6 +480,22 @@ git commit -m "feat(server): add nextDonationCode"
 
 This is the one function outside the `donations` module this plan adds, because
 donations must never reach `Inventory` directly (module-ownership rule).
+
+Step 3 below required one adjustment beyond what an initial pass suggests, caught by
+Step 4's own concurrency test (worth noting up front so it isn't a surprise mid-task):
+a plain `findOneAndUpdate` upsert on `{camp_id, item_id}` is not race-safe under
+concurrent first-time receipt — nothing enforces at the database layer that only one
+of two simultaneous "no lot yet" reads gets to insert. Fixing this needs a real
+uniqueness constraint, and it cannot be a plain unique index on `{camp_id, item_id}`
+— `Inventory` already allows more than one manually-created batch per camp/item
+(`batch_no`), and constraining that would be a regression to shipped M1 behavior.
+The fix, included below: a new `source: 'manual' | 'donation'` field defaulting to
+`'manual'`, and a **partial** unique index on `{camp_id, item_id, source}` scoped to
+`source: 'donation'` — at most one donation-managed lot per camp/item, enforced by
+MongoDB itself, while every existing manual batch keeps exactly its current, untouched
+behavior. A concurrent loser gets a duplicate-key error and retries, the same
+insert-first-catch-duplicate idiom `distribution.service.js` already uses for its
+`ALREADY_DISTRIBUTED` guard.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -546,7 +563,31 @@ describe('receiveStock', () => {
 Run: `npm run test --workspace server -- src/modules/resources/resources.service.test.js`
 Expected: FAIL — `receiveStock` is not exported.
 
-- [ ] **Step 3: Add the function**
+- [ ] **Step 3: Add the `source` field and partial unique index**
+
+```js
+// server/src/modules/resources/inventory.model.js — add the field, alongside batch_no
+    // Distinguishes the single lot receiveStock manages per camp/item from
+    // manually-created batches, which may legitimately number more than
+    // one. See the partial unique index below.
+    source: { type: String, enum: ['manual', 'donation'], default: 'manual' },
+```
+
+```js
+// server/src/modules/resources/inventory.model.js — add below the existing
+// inventorySchema.index({ camp_id: 1, item_id: 1 }); line
+// At most one donation-sourced lot per camp/item -- this is what makes
+// receiveStock's upsert race-safe under concurrent first-time receipt
+// (resources.service.js). Scoped to source:'donation' only, so it never
+// constrains manually-created batches, which may still number more than
+// one per camp/item as before.
+inventorySchema.index(
+  { camp_id: 1, item_id: 1, source: 1 },
+  { unique: true, partialFilterExpression: { source: 'donation' } }
+);
+```
+
+- [ ] **Step 4: Add the function**
 
 ```js
 // server/src/modules/resources/resources.service.js — add after adjustInventory
@@ -560,40 +601,61 @@ Expected: FAIL — `receiveStock` is not exported.
  * alert) until an admin sets a real one via the existing adjust endpoint —
  * a donation has no basis to guess what "low" means for this camp.
  *
+ * Marked source:'donation' and matched/inserted against that field
+ * specifically: a plain {camp_id, item_id} upsert is not race-safe under
+ * concurrent first-time receipt (two calls can both see "no lot yet" and
+ * both insert). The partial unique index on inventory.model.js enforces at
+ * most one source:'donation' lot per camp/item; a concurrent loser gets a
+ * duplicate-key error here and retries, folding its receipt into the
+ * winner's lot instead of creating a second one. Manually-created batches
+ * are untouched by this — they default to source:'manual' and the index
+ * does not apply to them.
+ *
  * No side effects here on purpose: this is called from inside another
  * module's transaction, and a socket emit or notification must never fire
  * from work that might still be rolled back. The caller announces
  * low-stock and broadcasts the change after its own transaction commits.
  */
 export async function receiveStock({ camp_id, item_id, quantity, expiry_date = null }, { actorId, session } = {}) {
-  return Inventory.findOneAndUpdate(
-    { camp_id, item_id },
-    {
-      $inc: { remaining_qty: quantity },
-      $setOnInsert: {
-        camp_id, item_id, distributed_qty: 0, reorder_threshold: 0, expiry_date, created_by: actorId,
+  try {
+    return await Inventory.findOneAndUpdate(
+      { camp_id, item_id, source: 'donation' },
+      {
+        $inc: { remaining_qty: quantity },
+        $setOnInsert: {
+          camp_id, item_id, source: 'donation', distributed_qty: 0, reorder_threshold: 0, expiry_date, created_by: actorId,
+        },
       },
-    },
-    { new: true, upsert: true, session }
-  );
+      { new: true, upsert: true, session }
+    );
+  } catch (err) {
+    if (err?.code === 11000) {
+      return receiveStock({ camp_id, item_id, quantity, expiry_date }, { actorId, session });
+    }
+    throw err;
+  }
 }
 ```
 
-- [ ] **Step 4: Run it and confirm it passes**
+- [ ] **Step 5: Run it and confirm it passes**
 
 Run: `npm run test --workspace server -- src/modules/resources/resources.service.test.js`
-Expected: PASS — all 3 tests.
+Expected: PASS — all 3 tests, including the concurrency test (this is the one that
+would fail against a plain, non-partial-indexed upsert — confirm it actually exercises
+the race by checking it fails first if Steps 3–4 are skipped).
 
-- [ ] **Step 5: Run the full resources test suite to confirm nothing else changed**
+- [ ] **Step 6: Run the full resources test suite to confirm nothing else changed**
 
 Run: `npm run test --workspace server -- src/modules/resources`
 Expected: PASS across `resources.test.js`, `inventory.model.test.js`, and the new
-`resources.service.test.js`.
+`resources.service.test.js` — the new field's default keeps every existing manual-batch
+test passing unchanged.
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 7: Commit**
 
 ```bash
-git add server/src/modules/resources/resources.service.js server/src/modules/resources/resources.service.test.js
+git add server/src/modules/resources/resources.service.js server/src/modules/resources/inventory.model.js \
+        server/src/modules/resources/resources.service.test.js
 git commit -m "feat(server): add receiveStock, the donation-to-inventory primitive"
 ```
 
