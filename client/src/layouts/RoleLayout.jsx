@@ -2,6 +2,7 @@ import { Box, Button, Container, Typography } from '@mui/material';
 import { NavLink, Outlet } from 'react-router-dom';
 import { useAuth } from '../AuthProvider.jsx';
 import { NotificationBell } from '../components/NotificationBell.jsx';
+import { AdminChatbot } from '../features/admin/AdminChatbot.jsx';
 
 const ROLE_LABEL = {
   admin: 'Administrator',
@@ -83,6 +84,7 @@ export function RoleLayout() {
   const { user, logout } = useAuth();
   const nav = NAV_BY_ROLE[user?.role];
   const showBell = user?.role === 'admin' || user?.role === 'camp_official';
+  const showAssistant = user?.role === 'admin';
   return (
     <Box sx={{ minHeight: '100dvh', bgcolor: 'background.default' }}>
       <Box
@@ -126,6 +128,7 @@ export function RoleLayout() {
       </Box>
       {nav && <NavBar items={nav} />}
       <Container sx={{ py: 3 }}><Outlet /></Container>
+      {showAssistant && <AdminChatbot />}
     </Box>
   );
 }
