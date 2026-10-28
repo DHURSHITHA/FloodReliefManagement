@@ -5,6 +5,10 @@ export default defineConfig({
   plugins: [react()],
   server: {
     port: 5173,
+    // Without this Vite quietly moves to 5174 when a stale dev server still
+    // holds 5173, so you end up editing one app and reloading another. Failing
+    // loudly makes the leftover process obvious instead of invisible.
+    strictPort: true,
     // Same-origin in dev, so the refresh cookie is sent without CORS exemptions.
     proxy: {
       '/api': { target: 'http://localhost:4000', changeOrigin: true },
