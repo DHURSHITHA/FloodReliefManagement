@@ -1,0 +1,43 @@
+# Render deployment for the Flood Relief Portal.
+#
+# One service, not two: the Express server also serves the built React app, so
+# the browser talks to a single origin. That is what keeps the refresh cookie
+# (sameSite: 'strict') working -- split across two domains it would never be
+# sent, and silent re-login would break.
+services:
+  - type: web
+    name: flood-relief-portal
+    runtime: node
+    plan: free
+    region: singapore
+    # Render defaults NODE_ENV to production, which makes a plain `npm ci` skip
+    # devDependencies -- and vite lives there, so the client build would fail
+    # with "vite: not found". --include=dev is what prevents that.
+    buildCommand: npm ci --include=dev && npm run build --workspace client
+    startCommand: npm start --workspace server
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: NODE_ENV
+        value: production
+      # sync: false means Render prompts for the value in the dashboard and
+      # keeps it there. Secrets must never be committed to this file.
+      - key: MONGODB_URI
+        sync: false
+      - key: JWT_ACCESS_SECRET
+        sync: false
+      - key: JWT_REFRESH_SECRET
+        sync: false
+      # These two must match the values the existing database was written with:
+      # the pepper backs duplicate-person detection and the key decrypts stored
+      # Aadhaar records. New values would orphan every existing record.
+      - key: AADHAAR_HMAC_PEPPER
+        sync: false
+      - key: AADHAAR_ENC_KEY
+        sync: false
+      # Set this to the service's own https://....onrender.com address once
+      # Render has assigned it; Socket.IO rejects connections from any other
+      # origin.
+      - key: CLIENT_ORIGIN
+        sync: false

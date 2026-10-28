@@ -6,7 +6,8 @@
   "main": "src/server.js",
   "scripts": {
     "dev": "node --watch --env-file=../.env src/server.js",
-    "start": "node --env-file=../.env src/server.js",
+    "start": "node src/server.js",
+    "start:local": "node --env-file=../.env src/server.js",
     "test": "vitest run",
     "test:watch": "vitest",
     "seed": "node --env-file=../.env src/scripts/seed.js",

@@ -2,7 +2,9 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
-import { env } from './config/env.js';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { env, isProd } from './config/env.js';
 import { notFoundHandler, errorHandler } from './middleware/errorHandler.js';
 import { authRouter } from './modules/auth/auth.routes.js';
 import { areasRouter } from './modules/areas/areas.routes.js';
@@ -16,11 +18,26 @@ import { complaintsRouter } from './modules/complaints/complaints.routes.js';
 import { sosRouter } from './modules/sos/sos.routes.js';
 import { donationsRouter } from './modules/donations/donations.routes.js';
 
+// The built SPA, served from this same origin in production.
+const clientDist = fileURLToPath(new URL('../../client/dist/', import.meta.url));
+
 export function createApp() {
   const app = express();
 
   app.set('trust proxy', 1);
-  app.use(helmet());
+  app.use(
+    helmet({
+      contentSecurityPolicy: {
+        directives: {
+          ...helmet.contentSecurityPolicy.getDefaultDirectives(),
+          // The areas map fetches its tiles straight from OpenStreetMap, and
+          // helmet's default img-src of "'self' data:" would block them,
+          // leaving a blank grey square where the map should be.
+          'img-src': ["'self'", 'data:', 'blob:', 'https://*.tile.openstreetmap.org'],
+        },
+      },
+    })
+  );
   app.use(cors({ origin: env.CLIENT_ORIGIN, credentials: true }));
   app.use(express.json({ limit: '1mb' }));
   app.use(cookieParser());
@@ -40,6 +57,20 @@ export function createApp() {
   app.use('/api', complaintsRouter);
   app.use('/api', sosRouter);
   app.use('/api', donationsRouter);
+
+  // In production the API and the site share one origin, so the refresh
+  // cookie's sameSite:'strict' keeps working with no CORS exemption -- the
+  // same arrangement the Vite dev proxy gives us locally.
+  if (isProd) {
+    app.use(express.static(clientDist));
+    // Deep links such as /camps/123 are React Router paths, not files on disk,
+    // so hand them index.html and let the router resolve them. Unmatched /api
+    // paths must fall through to notFoundHandler and answer as JSON.
+    app.use((req, res, next) => {
+      if (req.method !== 'GET' || req.path.startsWith('/api')) return next();
+      res.sendFile(path.join(clientDist, 'index.html'));
+    });
+  }
 
   app.use(notFoundHandler);
   app.use(errorHandler);
