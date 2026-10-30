@@ -36,6 +36,15 @@ export function createApp() {
           'img-src': ["'self'", 'data:', 'blob:', 'https://*.tile.openstreetmap.org'],
         },
       },
+      // helmet defaults this to 'no-referrer', which strips the Referer from
+      // the map's tile requests -- and OpenStreetMap answers refererless
+      // traffic with its "Access blocked" tile (x-blocked: No referer sent),
+      // served as HTTP 200 so Leaflet tiles the rejection across the map.
+      // Locally the Vite dev server serves the page without helmet, so the
+      // map only breaks once deployed. This policy sends the bare origin
+      // cross-origin -- enough for OSM to identify the app, while still
+      // withholding the path and query string.
+      referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
     })
   );
   app.use(cors({ origin: env.CLIENT_ORIGIN, credentials: true }));
